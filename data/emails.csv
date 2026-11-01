@@ -1,0 +1,6 @@
+MailId,ProjectId,Sender,Subject,Body,ReceivedAt
+E-1,P-100,kunde@muster.example,Statusrunde,Danke für das Update. Der Termin am Donnerstag passt uns.,2026-11-02
+E-2,P-100,kunde@muster.example,Verzug ERP-Schnittstelle,Die ERP-Schnittstelle wird nach Auskunft unseres IT-Teams erst Ende März fertig. Wir erwarten trotzdem den Go-live am 30.06. und verweisen auf die Vertragsstrafe.,2026-11-03
+E-3,P-100,kunde@muster.example,Zusätzliche Anforderung,Bitte ergänzt noch eine Anbindung an unser CRM. Das sollte doch im Festpreis enthalten sein.,2026-11-04
+E-4,P-200,team@beispiel.example,Urlaubsplanung,Unser Team ist vom 20.12. bis 03.01. nicht erreichbar.,2026-11-02
+E-5,P-200,controlling@beispiel.example,Budgetwarnung,Nach aktuellem Stand liegen die Kosten bei 230.000 EUR. Wir bitten um eine Erklärung.,2026-11-05
