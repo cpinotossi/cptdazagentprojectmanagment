@@ -1,0 +1,55 @@
+/// An incoming email about a project.
+entity Email
+	lineageTag: 2dbdea62-398f-57b3-9d01-12ee97185007
+	backingTable: emails
+	keyProperty: MailId
+	synonym 'Mail'
+	synonym 'Message'
+
+	/// Unique email ID.
+	property MailId
+		dataType: string
+		lineageTag: 3aa76bee-e20f-54c1-9c5a-3cba9834e2fd
+
+		backingConfiguration
+			valueColumn: emails.MailId
+
+	/// ID of the project the email refers to.
+	property ProjectId
+		dataType: string
+		lineageTag: bea8be96-0a06-5c9d-92b2-95408f3aa495
+
+		backingConfiguration
+			valueColumn: emails.ProjectId
+
+	/// Email address of the sender.
+	property Sender
+		dataType: string
+		lineageTag: d7c33984-9e42-59bd-b7d9-cb0f3b22547a
+
+		backingConfiguration
+			valueColumn: emails.Sender
+
+	/// Subject line.
+	property Subject
+		dataType: string
+		lineageTag: 05825376-b6e1-50d3-be80-cda75fc16df8
+
+		backingConfiguration
+			valueColumn: emails.Subject
+
+	/// Text of the email.
+	property Body
+		dataType: string
+		lineageTag: b9651aa3-4e5d-598c-8e0c-2461391fc1f9
+
+		backingConfiguration
+			valueColumn: emails.Body
+
+	/// Date the email was received (YYYY-MM-DD).
+	property ReceivedAt
+		dataType: string
+		lineageTag: d9f87e60-680d-5e47-842d-b94dc1caadfe
+
+		backingConfiguration
+			valueColumn: emails.ReceivedAt

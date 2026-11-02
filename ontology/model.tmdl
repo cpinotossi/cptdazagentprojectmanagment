@@ -1,0 +1,17 @@
+model Model
+
+ref table project_managers
+ref table projects
+ref table documents
+ref table emails
+
+ref entity ProjectManager
+ref entity Project
+ref entity ProjectDocument
+ref entity Email
+
+ref namespace default
+
+ref rule EmailCriticality
+ref rule EscalationPolicy
+ref rule ChangeRequestPolicy

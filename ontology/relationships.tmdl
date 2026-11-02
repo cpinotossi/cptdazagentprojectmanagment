@@ -1,0 +1,11 @@
+relationship rel_project_managed_by
+	fromColumn: projects.ManagerId
+	toColumn: project_managers.ManagerId
+
+relationship rel_document_of_project
+	fromColumn: documents.ProjectId
+	toColumn: projects.ProjectId
+
+relationship rel_email_about_project
+	fromColumn: emails.ProjectId
+	toColumn: projects.ProjectId

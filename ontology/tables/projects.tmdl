@@ -1,0 +1,44 @@
+table projects
+	lineageTag: 7e8dc04b-6d05-5b23-b8d2-01640ad456b2
+
+	column ProjectId
+		dataType: string
+		lineageTag: cdb43ee7-cff1-5757-8575-f5ac98c2fdf8
+		sourceColumn: ProjectId
+
+	column Name
+		dataType: string
+		lineageTag: 6a079c32-b3a4-5d6e-8f17-6cac67b3e8c2
+		sourceColumn: Name
+
+	column Customer
+		dataType: string
+		lineageTag: 6895643e-a762-560a-8af1-120e229f1333
+		sourceColumn: Customer
+
+	column ManagerId
+		dataType: string
+		lineageTag: bba07907-b8c5-5242-bc12-f00f24c60a7d
+		sourceColumn: ManagerId
+
+	column StartDate
+		dataType: string
+		lineageTag: c6640172-fade-586e-9dfd-7baaaf0f4fe6
+		sourceColumn: StartDate
+
+	column EndDate
+		dataType: string
+		lineageTag: b42aa3df-12f8-595e-bcf5-70c347257ebe
+		sourceColumn: EndDate
+
+	column BudgetEur
+		dataType: string
+		lineageTag: 18e67345-ccb7-524b-9af6-d30c1e530c62
+		sourceColumn: BudgetEur
+
+	partition projects = entity
+		mode: directLake
+		source
+			entityName: projects
+			schemaName: dbo
+			expressionSource: DatabaseQuery

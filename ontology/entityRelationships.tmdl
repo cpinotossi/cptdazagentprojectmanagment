@@ -1,0 +1,26 @@
+/// A project is led by one project manager.
+entityRelationship 'Project Managed By'
+	lineageTag: aa3a9fa8-c58b-54e9-b4f6-da0bdb97a0ad
+	fromEntity: Project
+	toEntity: ProjectManager
+
+	backingConfiguration
+		relationship: rel_project_managed_by
+
+/// A document belongs to one project.
+entityRelationship 'Document Of Project'
+	lineageTag: 93d9262c-dda9-5224-b3e7-3175715432d4
+	fromEntity: ProjectDocument
+	toEntity: Project
+
+	backingConfiguration
+		relationship: rel_document_of_project
+
+/// An email refers to one project.
+entityRelationship 'Email About Project'
+	lineageTag: 4fd8f93f-8d28-59b6-9b9b-9474db4916bb
+	fromEntity: Email
+	toEntity: Project
+
+	backingConfiguration
+		relationship: rel_email_about_project

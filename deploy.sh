@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stellt Azure-Ressourcen per Bicep bereit und richtet danach Fabric und den Agent ein.
+# Deploys the Azure resources with Bicep, then sets up Fabric and the agent.
 set -euo pipefail
 cd "$(dirname "$0")"
 

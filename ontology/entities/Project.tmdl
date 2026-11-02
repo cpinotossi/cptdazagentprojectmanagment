@@ -1,0 +1,63 @@
+/// A construction project for a customer.
+entity Project
+	lineageTag: 762fca16-9cf7-58f4-b0ad-4726a0654551
+	backingTable: projects
+	keyProperty: ProjectId
+	synonym 'Construction project'
+	synonym 'Building project'
+
+	/// Unique project ID, for example P-100.
+	property ProjectId
+		dataType: string
+		lineageTag: c4374c1b-14da-541c-8111-7d0bafb56fb2
+
+		backingConfiguration
+			valueColumn: projects.ProjectId
+
+	/// Name of the project.
+	property Name
+		dataType: string
+		lineageTag: bedf6765-e9c0-5448-9705-d3d0832ee08b
+
+		backingConfiguration
+			valueColumn: projects.Name
+
+	/// Name of the client.
+	property Customer
+		dataType: string
+		lineageTag: 57b7ff3f-c4db-5ffa-874f-f6b714fb6af0
+
+		backingConfiguration
+			valueColumn: projects.Customer
+
+	/// ID of the responsible project manager.
+	property ManagerId
+		dataType: string
+		lineageTag: ebc9b066-1657-5ee0-9ed5-716f1f78e586
+
+		backingConfiguration
+			valueColumn: projects.ManagerId
+
+	/// Planned start date (YYYY-MM-DD).
+	property StartDate
+		dataType: string
+		lineageTag: b33bf0b1-b4ca-51fd-8d87-ad9770c1fd84
+
+		backingConfiguration
+			valueColumn: projects.StartDate
+
+	/// Planned completion date (YYYY-MM-DD).
+	property EndDate
+		dataType: string
+		lineageTag: 1e493586-996f-5075-b399-81017037afb0
+
+		backingConfiguration
+			valueColumn: projects.EndDate
+
+	/// Project budget in euros (EUR).
+	property BudgetEur
+		dataType: string
+		lineageTag: fcf4d482-fe63-52fe-84c1-94ba1dafb227
+
+		backingConfiguration
+			valueColumn: projects.BudgetEur

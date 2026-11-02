@@ -1,4 +1,4 @@
-"""Richtet Fabric (Lakehouse, Ontology) und den Foundry-Agent ein. Idempotent, kann erneut ausgeführt werden."""
+"""Sets up Fabric (lakehouse, ontology) and the Foundry agent. Idempotent, safe to run again."""
 import base64
 import csv
 import io
@@ -7,7 +7,6 @@ import os
 import re
 import sys
 import time
-import uuid
 from pathlib import Path
 
 import requests
@@ -19,11 +18,17 @@ from pypdf import PdfReader
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 FABRIC = "https://api.fabric.microsoft.com/v1"
-WORKSPACE_NAME = "Projektplanung"
-LAKEHOUSE_NAME = "projektdaten"
-ONTOLOGY_NAME = "Projektplanung"
-AGENT_NAME = "projektplanung-agent"
+WORKSPACE_NAME = "ProjectPlanning"
+LAKEHOUSE_NAME = "projectdata"
+ONTOLOGY_DIR = Path(__file__).resolve().parent.parent / "ontology"
+ONTOLOGY_NAME = json.loads((ONTOLOGY_DIR / ".platform").read_text())["metadata"]["displayName"]
+TABLES = sorted(p.stem for p in (ONTOLOGY_DIR / "tables").glob("*.tmdl"))
+AGENT_NAME = "project-planning-agent"
 CONNECTION_NAME = "fabric-iq-ontology"
+
+# The ontology itself (entities, descriptions, synonyms, relationships, rules, bindings) lives in
+# ontology/ as TMDL files, the Fabric ontology definition format. Agents read the descriptions
+# and rules at runtime, so the agent prompt does not repeat them.
 
 cred = AzureCliCredential()
 
@@ -51,7 +56,7 @@ def wait_operation(r):
         if status == "Succeeded":
             return
         if status == "Failed":
-            sys.exit(f"Fabric-Operation fehlgeschlagen: {r.text}")
+            sys.exit(f"Fabric operation failed: {r.text}")
 
 
 def find(path, name):
@@ -61,40 +66,23 @@ def find(path, name):
 def env(name):
     value = os.environ.get(name)
     if not value:
-        sys.exit(f"Umgebungsvariable {name} fehlt (wird von deploy.sh gesetzt)")
+        sys.exit(f"Environment variable {name} is missing (set by deploy.sh)")
     return value
 
 
-# ---------- Daten ----------
+# ---------- Data ----------
 
 def documents_csv():
-    """Liest die PDFs und macht daraus eine Tabelle (eine Zeile pro Dokument)."""
-    types = {"lastenheft": "Lastenheft", "angebot": "Angebot", "vertrag": "Vertrag"}
+    """Turns the PDFs into a table with one row per document."""
+    types = {"specification": "Specification", "offer": "Offer", "contract": "Contract"}
     out = io.StringIO()
     w = csv.writer(out)
     w.writerow(["DocId", "ProjectId", "DocType", "Title", "Content"])
     for pdf in sorted((DATA / "pdfs").glob("*.pdf")):
         project_id, kind = pdf.stem.split("_")
-        text = " ".join(p.extract_text() for p in PdfReader(pdf).pages)
-        text = re.sub(r"\s+", " ", text).strip()
-        title = text.split(" Auftraggeber")[0].split(" Anbieter")[0].split(" Vertragsparteien")[0]
-        w.writerow([pdf.stem, project_id, types[kind], title, text])
+        title, _, body = PdfReader(pdf).pages[0].extract_text().strip().partition("\n")
+        w.writerow([pdf.stem, project_id, types[kind], title.strip(), re.sub(r"\s+", " ", body).strip()])
     return out.getvalue().encode("utf-8")
-
-
-TABLES = {
-    # Tabelle: (Entität, Schlüssel, Beschreibung, Spalten)
-    "project_managers": ("ProjectManager", "ManagerId", "Projektleiter", ["ManagerId", "Name", "Email"]),
-    "projects": ("Project", "ProjectId", "Ein Kundenprojekt", ["ProjectId", "Name", "Customer", "ManagerId", "StartDate", "EndDate", "Budget"]),
-    "documents": ("ProjectDocument", "DocId", "Lastenheft, Angebot oder Vertrag; Content enthält den PDF-Text", ["DocId", "ProjectId", "DocType", "Title", "Content"]),
-    "emails": ("Email", "MailId", "Eingegangene E-Mail zu einem Projekt", ["MailId", "ProjectId", "Sender", "Subject", "Body", "ReceivedAt"]),
-}
-# (Name, von-Tabelle, nach-Tabelle, Fremdschlüssel, Schlüssel)
-RELATIONS = [
-    ("Project Managed By", "projects", "project_managers", "ManagerId"),
-    ("Document Of Project", "documents", "projects", "ProjectId"),
-    ("Email About Project", "emails", "projects", "ProjectId"),
-]
 
 
 def upload_and_load(workspace_id, lakehouse_id):
@@ -109,66 +97,29 @@ def upload_and_load(workspace_id, lakehouse_id):
             "mode": "Overwrite",
             "formatOptions": {"format": "Csv", "header": True, "delimiter": ","},
         })
-        print(f"  Tabelle {table} geladen")
+        print(f"  Loaded table {table}")
 
 
 # ---------- Ontology (TMDL) ----------
 
-def tag(*parts):
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, "/".join(parts)))
-
-
 def ontology_parts(sql_server, sql_db_id):
-    parts = {
-        ".platform": json.dumps({
-            "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
-            "metadata": {"type": "Ontology", "displayName": ONTOLOGY_NAME},
-            "config": {"version": "2.0", "logicalId": "00000000-0000-0000-0000-000000000000"},
-        }),
-        "database.tmdl": "database\n\tcompatibilityLevel: 1000000\n",
-        "namespaces/default.tmdl": "namespace default\n\tlineageTag: default\n",
-        "expressions.tmdl": (
-            "expression DatabaseQuery =\n\t\tlet\n"
-            f'\t\t    database = Sql.Database("{sql_server}", "{sql_db_id}")\n'
-            "\t\tin\n\t\t    database\n"
-            f"\tlineageTag: {tag('expr')}\n"
-        ),
-    }
-    refs = []
-    entity_by_table = {t: v[0] for t, v in TABLES.items()}
-    for table, (entity, key, description, columns) in TABLES.items():
-        t = [f"table {table}", f"\tlineageTag: {tag(table)}", ""]
-        for c in columns:
-            t += [f"\tcolumn {c}", "\t\tdataType: string", f"\t\tlineageTag: {tag(table, c)}", f"\t\tsourceColumn: {c}", ""]
-        t += [f"\tpartition {table} = entity", "\t\tmode: directLake", "\t\tsource", f"\t\t\tentityName: {table}",
-              "\t\t\tschemaName: dbo", "\t\t\texpressionSource: DatabaseQuery", ""]
-        parts[f"tables/{table}.tmdl"] = "\n".join(t)
-
-        e = [f"/// {description}", f"entity {entity}", f"\tlineageTag: {tag(entity)}", f"\tbackingTable: {table}", f"\tkeyProperty: {key}", ""]
-        for c in columns:
-            e += [f"\tproperty {c}", "\t\tdataType: string", f"\t\tlineageTag: {tag(entity, c)}", "",
-                  "\t\tbackingConfiguration", f"\t\t\tvalueColumn: {table}.{c}", ""]
-        parts[f"entities/{entity}.tmdl"] = "\n".join(e)
-        refs.append(f"ref table {table}")
-    refs += [""] + [f"ref entity {v}" for v in entity_by_table.values()] + ["", "ref namespace default"]
-    parts["model.tmdl"] = "\n".join(["model Model", ""] + refs + [""])
-
-    rels, entity_rels = [], []
-    for name, source, target, fk in RELATIONS:
-        rel_id = "rel_" + name.lower().replace(" ", "_")
-        rels += [f"relationship {rel_id}", f"\tfromColumn: {source}.{fk}", f"\ttoColumn: {target}.{fk}", ""]
-        entity_rels += [f"entityRelationship '{name}'", f"\tlineageTag: {tag(name)}", f"\tfromEntity: {entity_by_table[source]}",
-                        f"\ttoEntity: {entity_by_table[target]}", "", "\tbackingConfiguration", f"\t\trelationship: {rel_id}", ""]
-    parts["relationships.tmdl"] = "\n".join(rels)
-    parts["entityRelationships.tmdl"] = "\n".join(entity_rels)
-    return [{"path": p, "payload": base64.b64encode(c.encode()).decode(), "payloadType": "InlineBase64"} for p, c in parts.items()]
+    """Reads ontology/ and fills the two environment specific values of the SQL endpoint."""
+    values = {"{{SQL_SERVER}}": sql_server, "{{SQL_DATABASE_ID}}": sql_db_id}
+    parts = []
+    for file in sorted(f for f in ONTOLOGY_DIR.rglob("*") if f.is_file()):
+        text = file.read_text(encoding="utf-8")
+        for placeholder, value in values.items():
+            text = text.replace(placeholder, value)
+        parts.append({"path": file.relative_to(ONTOLOGY_DIR).as_posix(),
+                      "payload": base64.b64encode(text.encode()).decode(), "payloadType": "InlineBase64"})
+    return parts
 
 
-# ---------- Ablauf ----------
+# ---------- Flow ----------
 
 def setup_fabric():
     capacity_name = env("FABRIC_CAPACITY_NAME")
-    print("Fabric: Kapazität suchen")
+    print("Fabric: looking up capacity")
     capacity = None
     for _ in range(20):
         capacity = next((c for c in fabric("GET", "/capacities")["value"] if c["displayName"] == capacity_name), None)
@@ -176,9 +127,9 @@ def setup_fabric():
             break
         time.sleep(15)
     if not capacity:
-        sys.exit(f"Kapazität {capacity_name} nicht gefunden (Deployer muss Kapazitätsadmin sein)")
+        sys.exit(f"Capacity {capacity_name} not found (the deployer must be capacity admin)")
 
-    print("Fabric: Workspace und Lakehouse")
+    print("Fabric: workspace and lakehouse")
     ws = find("/workspaces", WORKSPACE_NAME)
     if not ws:
         ws = fabric("POST", "/workspaces", json={"displayName": WORKSPACE_NAME, "capacityId": capacity["id"]})
@@ -187,17 +138,17 @@ def setup_fabric():
         fabric("POST", f"/workspaces/{ws_id}/lakehouses", json={"displayName": LAKEHOUSE_NAME})
     lakehouse = find(f"/workspaces/{ws_id}/lakehouses", LAKEHOUSE_NAME)
 
-    print("Fabric: Daten hochladen und als Tabellen laden")
+    print("Fabric: uploading data and loading tables")
     upload_and_load(ws_id, lakehouse["id"])
 
-    print("Fabric: SQL-Endpunkt abwarten")
+    print("Fabric: waiting for the SQL endpoint")
     while True:
         sql = fabric("GET", f"/workspaces/{ws_id}/lakehouses/{lakehouse['id']}")["properties"]["sqlEndpointProperties"]
         if sql.get("provisioningStatus") == "Success":
             break
         time.sleep(10)
 
-    print("Fabric: Ontology anlegen")
+    print("Fabric: creating the ontology")
     definition = {"parts": ontology_parts(sql["connectionString"], sql["id"])}
     ontology = find(f"/workspaces/{ws_id}/ontologies", ONTOLOGY_NAME)
     if ontology:
@@ -210,7 +161,7 @@ def setup_fabric():
 
 def setup_agent(ws_id, ontology_id):
     sub, rg, account, project = env("AZURE_SUBSCRIPTION_ID"), env("AZURE_RESOURCE_GROUP"), env("FOUNDRY_ACCOUNT_NAME"), env("FOUNDRY_PROJECT_NAME")
-    print("Foundry: Fabric-IQ-Verbindung anlegen")
+    print("Foundry: creating the Fabric IQ connection")
     url = (f"https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/"
            f"accounts/{account}/projects/{project}/connections/{CONNECTION_NAME}?api-version=2025-10-01-preview")
     body = {"properties": {
@@ -222,9 +173,9 @@ def setup_agent(ws_id, ontology_id):
     }}
     r = requests.put(url, headers=headers("https://management.azure.com/.default"), json=body)
     if not r.ok:
-        sys.exit(f"Verbindung fehlgeschlagen: {r.status_code} {r.text}")
+        sys.exit(f"Connection failed: {r.status_code} {r.text}")
 
-    print("Foundry: Agent anlegen")
+    print("Foundry: creating the agent")
     instructions = (DATA.parent / "scripts" / "agent_instructions.txt").read_text(encoding="utf-8")
     with AIProjectClient(endpoint=env("FOUNDRY_PROJECT_ENDPOINT"), credential=cred) as client:
         agent = client.agents.create_version(
@@ -235,10 +186,10 @@ def setup_agent(ws_id, ontology_id):
                 tools=[FabricIQPreviewTool(project_connection_id=r.json()["id"], require_approval="never")],
             ),
         )
-        print(f"  Agent {agent.name} Version {agent.version}")
+        print(f"  Agent {agent.name} version {agent.version}")
         with client.get_openai_client(agent_name=agent.name) as openai:
-            question = "Welche E-Mails sind für den Projektverlauf kritisch? Bewerte sie und nenne den Projektleiter."
-            print(f"\nTestfrage: {question}\n")
+            question = "Which emails are critical for the project? Rate each one and name the project manager."
+            print(f"\nTest question: {question}\n")
             print(openai.responses.create(input=question).output_text)
 
 

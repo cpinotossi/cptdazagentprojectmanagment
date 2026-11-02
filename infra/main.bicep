@@ -1,15 +1,15 @@
-@description('Kurzer Name, wird in Ressourcennamen verwendet')
+@description('Short name used in resource names')
 @minLength(3)
 @maxLength(12)
 param baseName string = 'projplan'
 
-@description('Region mit Foundry und vollem Fabric-Angebot')
+@description('Region that supports Foundry and the full Fabric stack')
 param location string = resourceGroup().location
 
-@description('Object-ID des Deployers (az ad signed-in-user show --query id)')
+@description('Object ID of the deployer (az ad signed-in-user show --query id)')
 param principalId string
 
-@description('UPN des Deployers, wird Fabric-Kapazitätsadmin')
+@description('UPN of the deployer, becomes Fabric capacity admin')
 param fabricAdminUpn string
 
 param fabricSku string = 'F2'
@@ -47,12 +47,12 @@ resource model 'Microsoft.CognitiveServices/accounts/deployments@2026-03-01' = {
 
 resource project 'Microsoft.CognitiveServices/accounts/projects@2026-03-01' = {
   parent: account
-  name: 'projektplanung'
+  name: 'project-planning'
   location: location
-  dependsOn: [model] // Operationen am selben Account dürfen nicht parallel laufen
+  dependsOn: [model] // operations on the same account must not run in parallel
   identity: { type: 'SystemAssigned' }
   properties: {
-    displayName: 'Projektplanung'
+    displayName: 'Project Planning'
   }
 }
 

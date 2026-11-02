@@ -1,0 +1,30 @@
+/// Person who leads a construction project.
+entity ProjectManager
+	lineageTag: 7c8b4e5f-b8e0-564a-af22-249b6ee28531
+	backingTable: project_managers
+	keyProperty: ManagerId
+	synonym 'Project lead'
+
+	/// Unique ID of the project manager.
+	property ManagerId
+		dataType: string
+		lineageTag: 0ffa0fd9-ead8-5a95-b64e-6262bfebb21f
+
+		backingConfiguration
+			valueColumn: project_managers.ManagerId
+
+	/// Full name of the project manager.
+	property Name
+		dataType: string
+		lineageTag: 08ae24a4-003e-5fdf-976d-8b83000c012f
+
+		backingConfiguration
+			valueColumn: project_managers.Name
+
+	/// Email address of the project manager.
+	property Email
+		dataType: string
+		lineageTag: 8e8d75c1-af05-5a5f-b781-3e352661bbfe
+
+		backingConfiguration
+			valueColumn: project_managers.Email

@@ -1,0 +1,34 @@
+table documents
+	lineageTag: 1cc63d41-b3cc-5d3a-85f7-ff816b448df0
+
+	column DocId
+		dataType: string
+		lineageTag: 8b1053d5-65b3-5638-aa41-37b784d787ba
+		sourceColumn: DocId
+
+	column ProjectId
+		dataType: string
+		lineageTag: a5da5460-04f0-537b-b4aa-ec33b9b460c5
+		sourceColumn: ProjectId
+
+	column DocType
+		dataType: string
+		lineageTag: b27c075b-b55e-57f0-9830-61f45aafe01a
+		sourceColumn: DocType
+
+	column Title
+		dataType: string
+		lineageTag: 8faab5a1-74ce-5c7b-9413-998726b353ff
+		sourceColumn: Title
+
+	column Content
+		dataType: string
+		lineageTag: 947d91fe-930e-5281-8225-c42bdd5258df
+		sourceColumn: Content
+
+	partition documents = entity
+		mode: directLake
+		source
+			entityName: documents
+			schemaName: dbo
+			expressionSource: DatabaseQuery

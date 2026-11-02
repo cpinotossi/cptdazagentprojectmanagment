@@ -1,0 +1,6 @@
+rule ChangeRequestPolicy
+	lineageTag: 3f5a599b-c690-5858-b1a6-bdccc2f94d73
+	statement: A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price.
+	ruleReferencedEntity Email
+	ruleReferencedEntity ProjectDocument
+	ruleReferencedRelationship 'Email About Project'

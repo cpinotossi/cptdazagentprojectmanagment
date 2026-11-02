@@ -1,0 +1,47 @@
+/// A specification, offer or contract of a project. Content holds the full PDF text.
+entity ProjectDocument
+	lineageTag: cb427b5b-3970-5961-b2ca-001dbab8001c
+	backingTable: documents
+	keyProperty: DocId
+	synonym 'Document'
+	synonym 'Contract document'
+
+	/// Unique document ID.
+	property DocId
+		dataType: string
+		lineageTag: 7def4cbf-62b2-5c79-89b0-8c18531b159d
+
+		backingConfiguration
+			valueColumn: documents.DocId
+
+	/// ID of the project the document belongs to.
+	property ProjectId
+		dataType: string
+		lineageTag: f3cdc17b-2e5b-57bf-9240-67493c443aee
+
+		backingConfiguration
+			valueColumn: documents.ProjectId
+
+	/// One of Specification, Offer or Contract.
+	property DocType
+		dataType: string
+		lineageTag: 8c2e3b3a-3410-5078-a5bb-55911759a76c
+
+		backingConfiguration
+			valueColumn: documents.DocType
+
+	/// Title of the document.
+	property Title
+		dataType: string
+		lineageTag: 10c7a8fb-0082-5e32-a934-4c791c47f74b
+
+		backingConfiguration
+			valueColumn: documents.Title
+
+	/// Full text of the PDF with dates, assumptions, prices and penalties.
+	property Content
+		dataType: string
+		lineageTag: 06c4f570-ec54-53eb-a082-d92c6a071c78
+
+		backingConfiguration
+			valueColumn: documents.Content

@@ -1,0 +1,39 @@
+table emails
+	lineageTag: 273f9d02-5393-54ba-89a1-fb84ebece412
+
+	column MailId
+		dataType: string
+		lineageTag: 091d7432-d9c4-5006-ae01-c02e77546d9e
+		sourceColumn: MailId
+
+	column ProjectId
+		dataType: string
+		lineageTag: 244b10ae-11a9-54ff-8eec-e35dbf07d7db
+		sourceColumn: ProjectId
+
+	column Sender
+		dataType: string
+		lineageTag: 90ab8870-b039-5084-af9d-ed365611e218
+		sourceColumn: Sender
+
+	column Subject
+		dataType: string
+		lineageTag: a43a621e-9fc4-5108-8475-c60015cadd40
+		sourceColumn: Subject
+
+	column Body
+		dataType: string
+		lineageTag: 86dba020-09f6-58ed-a311-a81da84585a5
+		sourceColumn: Body
+
+	column ReceivedAt
+		dataType: string
+		lineageTag: ca0f4e5d-525b-594c-b5c0-f7f1d5480a8b
+		sourceColumn: ReceivedAt
+
+	partition emails = entity
+		mode: directLake
+		source
+			entityName: emails
+			schemaName: dbo
+			expressionSource: DatabaseQuery

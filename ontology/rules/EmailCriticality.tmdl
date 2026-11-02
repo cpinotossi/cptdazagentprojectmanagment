@@ -1,0 +1,7 @@
+rule EmailCriticality
+	lineageTag: 715b2ef6-b7f8-5506-a153-11dcf03bf6a2
+	statement: An email is critical if it affects the completion date, the budget or the scope of its project, or if it contradicts an assumption or clause in the specification, offer or contract of that project. An email that only needs to be monitored is rated watch. All other emails are rated not critical.
+	ruleReferencedEntity Email
+	ruleReferencedEntity ProjectDocument
+	ruleReferencedRelationship 'Email About Project'
+	ruleReferencedRelationship 'Document Of Project'

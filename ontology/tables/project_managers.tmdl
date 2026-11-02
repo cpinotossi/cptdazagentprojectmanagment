@@ -1,0 +1,24 @@
+table project_managers
+	lineageTag: a9312d88-07df-5ae0-a2d1-66eb4487fd2e
+
+	column ManagerId
+		dataType: string
+		lineageTag: d8ade468-e6af-5a8a-9ebf-0c983720b14f
+		sourceColumn: ManagerId
+
+	column Name
+		dataType: string
+		lineageTag: 7f53c36b-e7c2-5986-87da-d63dd76ff8c5
+		sourceColumn: Name
+
+	column Email
+		dataType: string
+		lineageTag: dbf35b42-d8a6-59fa-8516-acf669ee8e68
+		sourceColumn: Email
+
+	partition project_managers = entity
+		mode: directLake
+		source
+			entityName: project_managers
+			schemaName: dbo
+			expressionSource: DatabaseQuery
