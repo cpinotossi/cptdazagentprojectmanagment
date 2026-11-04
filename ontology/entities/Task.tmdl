@@ -1,0 +1,55 @@
+/// A work package of a construction project with planned dates and a planned cost. A task cannot start before all its predecessor tasks have finished.
+entity Task
+	lineageTag: 0c733ceb-093c-5915-86c7-3b7f6bc11723
+	backingTable: tasks
+	keyProperty: TaskId
+	synonym 'Work package'
+	synonym 'Activity'
+
+	/// Unique task ID, for example T-101.
+	property TaskId
+		dataType: string
+		lineageTag: 6e2af304-08d6-5d7a-8813-e7ec353f90f9
+
+		backingConfiguration
+			valueColumn: tasks.TaskId
+
+	/// ID of the project the task belongs to.
+	property ProjectId
+		dataType: string
+		lineageTag: bdadf0ab-cb98-592f-b2dd-bae0161ca8bc
+
+		backingConfiguration
+			valueColumn: tasks.ProjectId
+
+	/// Name of the task.
+	property Name
+		dataType: string
+		lineageTag: 959d12c0-ea01-51a2-b5fe-b2b076bff8f5
+
+		backingConfiguration
+			valueColumn: tasks.Name
+
+	/// Planned start date of the task.
+	property StartDate
+		dataType: dateTime
+		lineageTag: 0f210ae7-e87e-5140-bdb6-6e0f02a05e03
+
+		backingConfiguration
+			valueColumn: tasks.StartDate
+
+	/// Planned end date of the task.
+	property EndDate
+		dataType: dateTime
+		lineageTag: 3945e094-55ac-541b-a763-75db948b2d92
+
+		backingConfiguration
+			valueColumn: tasks.EndDate
+
+	/// Planned cost of the task in euros (EUR).
+	property CostEur
+		dataType: int64
+		lineageTag: 7e3cb1d0-d971-55ad-bb19-f467267cf3e4
+
+		backingConfiguration
+			valueColumn: tasks.CostEur

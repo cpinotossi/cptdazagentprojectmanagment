@@ -56,6 +56,42 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2026-03-01' = {
   }
 }
 
+resource logs 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: 'log-${baseName}-${suffix}'
+  location: location
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: 30
+  }
+}
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: 'appi-${baseName}-${suffix}'
+  location: location
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logs.id
+  }
+}
+
+// Connecting Application Insights turns on server-side tracing of the agent
+resource tracingConnection 'Microsoft.CognitiveServices/accounts/projects/connections@2026-03-01' = {
+  parent: project
+  name: 'appinsights'
+  properties: {
+    category: 'AppInsights'
+    target: appInsights.id
+    authType: 'ApiKey'
+    isSharedToAll: true
+    credentials: { key: appInsights.properties.ConnectionString }
+    metadata: {
+      ApiType: 'Azure'
+      ResourceId: appInsights.id
+    }
+  }
+}
+
 resource capacity 'Microsoft.Fabric/capacities@2023-11-01' = {
   name: 'fc${baseName}${suffix}'
   location: location
@@ -90,3 +126,4 @@ output foundryProjectName string = project.name
 output foundryProjectEndpoint string = 'https://${account.name}.services.ai.azure.com/api/projects/${project.name}'
 output modelDeployment string = model.name
 output fabricCapacityName string = capacity.name
+output logAnalyticsWorkspaceId string = logs.properties.customerId

@@ -24,3 +24,24 @@ entityRelationship 'Email About Project'
 
 	backingConfiguration
 		relationship: rel_email_about_project
+
+/// A task belongs to one project.
+entityRelationship 'Task Of Project'
+	lineageTag: 64d1fff7-27e3-5513-8c8f-5ca445557039
+	fromEntity: Task
+	toEntity: Project
+
+	backingConfiguration
+		relationship: rel_task_of_project
+
+/// A task depends on its predecessor tasks. It cannot start before all of them have finished. Follow the relationship repeatedly to find every task that is affected, directly or indirectly, when a task is delayed.
+entityRelationship 'Task Depends On'
+	lineageTag: c40bc038-08e6-51c7-9f5a-2e37dead0959
+	fromEntity: Task
+	toEntity: Task
+
+	backingConfiguration
+		type: table
+		table: task_dependencies
+		fromRelationship: rel_dependency_task
+		toRelationship: rel_dependency_predecessor

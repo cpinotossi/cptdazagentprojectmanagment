@@ -1,0 +1,15 @@
+TaskId,ProjectId,Name,StartDate,EndDate,CostEur
+T-101,P-100,Building permit,2027-01-01,2027-01-31,20000
+T-102,P-100,Excavation and foundation,2027-02-01,2027-03-31,350000
+T-103,P-100,Structural frame,2027-04-01,2027-07-31,700000
+T-104,P-100,Facade and roof,2027-08-01,2027-09-30,450000
+T-105,P-100,Building services,2027-08-01,2027-10-31,400000
+T-106,P-100,Interior fit-out,2027-11-01,2027-11-30,330000
+T-107,P-100,Acceptance and handover,2027-12-01,2027-12-15,150000
+T-201,P-200,Site preparation and foundation,2027-03-01,2027-06-30,600000
+T-202,P-200,Shell building A,2027-07-01,2027-12-31,1400000
+T-203,P-200,Shell building B,2027-09-01,2028-02-28,1300000
+T-204,P-200,Building services,2028-01-01,2028-04-30,900000
+T-205,P-200,Facade and roof,2028-01-01,2028-03-31,800000
+T-206,P-200,Interior fit-out,2028-05-01,2028-06-10,600000
+T-207,P-200,Landscaping and handover,2028-06-11,2028-06-30,150000

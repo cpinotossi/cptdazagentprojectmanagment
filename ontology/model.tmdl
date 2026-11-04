@@ -4,11 +4,14 @@ ref table project_managers
 ref table projects
 ref table documents
 ref table emails
+ref table tasks
+ref table task_dependencies
 
 ref entity ProjectManager
 ref entity Project
 ref entity ProjectDocument
 ref entity Email
+ref entity Task
 
 ref namespace default
 

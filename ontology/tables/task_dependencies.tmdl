@@ -1,0 +1,19 @@
+table task_dependencies
+	lineageTag: 3f72f8bd-d860-5f9a-83a1-108a179a44ab
+
+	column TaskId
+		dataType: string
+		lineageTag: e8c133d9-71b2-58b1-97cd-0130df09d6bb
+		sourceColumn: TaskId
+
+	column PredecessorId
+		dataType: string
+		lineageTag: 1a2b662c-86c1-56d9-aaf4-0074003c383a
+		sourceColumn: PredecessorId
+
+	partition task_dependencies = entity
+		mode: directLake
+		source
+			entityName: task_dependencies
+			schemaName: dbo
+			expressionSource: DatabaseQuery

@@ -1,6 +1,10 @@
+/// A change request is work that the customer asks for and that the specification does not contain. Because the offer is a fixed price, such work has to be priced on its own, for example by effort as the offer states. Use this rule when an email asks for something new and claims that it is already covered.
 rule ChangeRequestPolicy
 	lineageTag: 3f5a599b-c690-5858-b1a6-bdccc2f94d73
 	statement: A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price.
 	ruleReferencedEntity Email
 	ruleReferencedEntity ProjectDocument
 	ruleReferencedRelationship 'Email About Project'
+	ruleReferencedRelationship 'Document Of Project'
+	annotation Category = Commercial
+	annotation Source = Offer and specification

@@ -9,3 +9,15 @@ relationship rel_document_of_project
 relationship rel_email_about_project
 	fromColumn: emails.ProjectId
 	toColumn: projects.ProjectId
+
+relationship rel_task_of_project
+	fromColumn: tasks.ProjectId
+	toColumn: projects.ProjectId
+
+relationship rel_dependency_task
+	fromColumn: task_dependencies.TaskId
+	toColumn: tasks.TaskId
+
+relationship rel_dependency_predecessor
+	fromColumn: task_dependencies.PredecessorId
+	toColumn: tasks.TaskId

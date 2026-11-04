@@ -1,0 +1,42 @@
+table tasks
+	lineageTag: 22fb2a43-b232-581d-b2f5-16be87e41e7a
+
+	column TaskId
+		dataType: string
+		lineageTag: 791170c6-a267-5a2b-aefd-6c8e16884158
+		sourceColumn: TaskId
+
+	column ProjectId
+		dataType: string
+		lineageTag: d74c2435-897d-5cec-a2f7-57ac106e62b5
+		sourceColumn: ProjectId
+
+	column Name
+		dataType: string
+		lineageTag: f9a44ca5-b817-5bca-9859-e36882c87cab
+		sourceColumn: Name
+
+	column StartDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 5732553a-0511-5811-8683-019be531e92a
+		sourceColumn: StartDate
+
+	column EndDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: c101ffd2-755e-54d3-8f8a-b44831bd8fec
+		sourceColumn: EndDate
+
+	column CostEur
+		dataType: int64
+		formatString: 0
+		lineageTag: eed8b676-4fad-5ed1-9605-d4054d61b0ee
+		sourceColumn: CostEur
+
+	partition tasks = entity
+		mode: directLake
+		source
+			entityName: tasks
+			schemaName: dbo
+			expressionSource: DatabaseQuery
