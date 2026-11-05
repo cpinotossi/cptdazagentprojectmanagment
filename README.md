@@ -5,7 +5,7 @@ description: Demo of a Microsoft Foundry agent that uses a Fabric ontology (Fabr
 
 ## Idea
 
-All data lives as tables in a Fabric lakehouse. A Fabric ontology gives the tables business meaning, and the Foundry agent reaches them only through the Fabric IQ tool.
+All data lives as tables in a Fabric lakehouse. A Fabric ontology gives the tables business meaning, and a small semantic model with DAX measures calculates exact numbers. The Foundry agent reaches both only through the Fabric IQ tool: the ontology for meaning and rules, the semantic model for durations and costs.
 
 ```text
 Project ──Managed By──▶ ProjectManager
@@ -22,12 +22,15 @@ The ontology also carries the business knowledge, so the agent prompt stays shor
 
 | Path | Purpose |
 |------|---------|
-| `infra/main.bicep` | Foundry account, project, model, Fabric capacity F2, Application Insights for tracing, role assignments |
+| `infra/main.bicep` | Foundry account, project, chat and embedding model, Fabric capacity F2, Application Insights for tracing, role assignments |
 | `ontology/` | The ontology as TMDL files: entities, descriptions, synonyms, relationships, rules, data bindings |
-| `scripts/setup.py` | Fabric workspace, lakehouse, tables, uploads `ontology/`, Foundry connection, agent |
+| `semantic_model/` | The semantic model as TMDL files: two tables and the DAX measures for duration, planned cost, budget and variance |
+| `extraction/` | Azure Content Understanding analyzer for the PDFs and the known values of the sample documents |
+| `scripts/setup.py` | Fabric workspace, lakehouse, tables, ontology, semantic model, Foundry connections, agent |
+| `scripts/content_understanding.py` | REST client for Azure Content Understanding, used by `setup.py` to read the terms from the PDFs |
 | `scripts/update_ontology.py` | Uploads only the `ontology/` folder, used after a change and by the notebook to restore a rule |
-| `scripts/agent_instructions.txt` | Short agent prompt: role, tool usage, no invented data |
-| `data/` | Four small PDFs and three CSV files as test data, amounts in EUR |
+| `scripts/agent_instructions.txt` | Agent prompt: role, which tool answers what, how to query the semantic model |
+| `data/` | Four small PDFs and CSV files as test data, amounts in EUR |
 | `notebooks/use_case.ipynb` | Bash notebook that plays the use case: an email arrives, is it critical? |
 | `docs/how-it-works.md` | Explanation of the solution for readers who know Foundry but not Fabric or ontologies |
 | `deploy.sh` | Runs both steps one after the other |
@@ -86,6 +89,7 @@ Checked against a live tenant:
 * Fabric IQ and the ontology API are in preview, and tool names can change.
 * The script uses the Azure CLI login. Another identity, for example from environment variables, does not see the capacity or the workspace.
 * A new Fabric capacity needs a few minutes before the Fabric API lists it. If the script reports "Capacity not found", run `./deploy.sh` again.
-* The columns of `Project`, `ProjectManager`, `ProjectDocument` and `Email` are declared as text. The `Task` entity has real types. See the data model section of `docs/how-it-works.md`.
+* Dates and amounts have real data types (`dateTime`, `double`) that match the lakehouse tables. All other columns are text.
+* The ontology agent calculates inexactly (30 instead of 31 days, "exactly 8 weeks" for 59 days), and explicit metrics in the ontology did not change that. Calculated numbers therefore come from DAX measures in `semantic_model/`. The agent prompt names the model, its measures and an example query, because without that the model often gave up after an empty `ValueSearch`. With the prompt, 30 of 30 test questions about duration and budget variance were answered correctly. This depends on the prompt and the language model that writes the DAX.
 * The connection uses the Entra token of the signed-in user. The user needs access to the Fabric workspace.
 * The old tool "Fabric data agent" is deprecated on 2026-11-06 and is therefore not used.

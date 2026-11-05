@@ -48,7 +48,7 @@ entity Task
 
 	/// Planned cost of the task in euros (EUR).
 	property CostEur
-		dataType: int64
+		dataType: double
 		lineageTag: 7e3cb1d0-d971-55ad-bb19-f467267cf3e4
 
 		backingConfiguration

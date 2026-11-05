@@ -21,6 +21,7 @@ export FOUNDRY_ACCOUNT_NAME="$(out foundryAccountName)"
 export FOUNDRY_PROJECT_NAME="$(out foundryProjectName)"
 export FOUNDRY_PROJECT_ENDPOINT="$(out foundryProjectEndpoint)"
 export FOUNDRY_MODEL_NAME="$(out modelDeployment)"
+export FOUNDRY_EMBEDDING_NAME="$(out embeddingDeployment)"
 export FABRIC_CAPACITY_NAME="$(out fabricCapacityName)"
 
 [ -d .venv ] || python3 -m venv .venv

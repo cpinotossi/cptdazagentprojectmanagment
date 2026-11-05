@@ -14,17 +14,23 @@ from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import FabricIQPreviewTool, PromptAgentDefinition
 from azure.identity import AzureCliCredential
 from azure.storage.filedatalake import DataLakeServiceClient
-from pypdf import PdfReader
+
+from content_understanding import ContentUnderstanding, field_value
 
 DATA = Path(__file__).resolve().parent.parent / "data"
+EXTRACTION_DIR = Path(__file__).resolve().parent.parent / "extraction"
+DOCUMENT_ANALYZER = "projectDocumentTerms"
 FABRIC = "https://api.fabric.microsoft.com/v1"
 WORKSPACE_NAME = "ProjectPlanning"
 LAKEHOUSE_NAME = "projectdata"
 ONTOLOGY_DIR = Path(__file__).resolve().parent.parent / "ontology"
 ONTOLOGY_NAME = json.loads((ONTOLOGY_DIR / ".platform").read_text())["metadata"]["displayName"]
 TABLES = sorted(p.stem for p in (ONTOLOGY_DIR / "tables").glob("*.tmdl"))
+SEMANTIC_MODEL_DIR = Path(__file__).resolve().parent.parent / "semantic_model"
+SEMANTIC_MODEL_NAME = "ProjectPlanningModel"
 AGENT_NAME = "project-planning-agent"
-CONNECTION_NAME = "fabric-iq-ontology"
+ONTOLOGY_CONNECTION = "fabric-iq-ontology"
+SEMANTIC_MODEL_CONNECTION = "fabric-iq-semantic-model"
 
 # The ontology itself (entities, descriptions, synonyms, relationships, rules, bindings) lives in
 # ontology/ as TMDL files, the Fabric ontology definition format. Agents read the descriptions
@@ -72,24 +78,68 @@ def env(name):
 
 # ---------- Data ----------
 
-def documents_csv():
-    """Turns the PDFs into a table with one row per document."""
+def content_understanding():
+    """Client for the Content Understanding of the Foundry account. Model name and deployment name are the same."""
+    cu = ContentUnderstanding(f"https://{env('FOUNDRY_ACCOUNT_NAME')}.cognitiveservices.azure.com", cred)
+    models = [env("FOUNDRY_MODEL_NAME"), env("FOUNDRY_EMBEDDING_NAME")]
+    cu.set_defaults({m: m for m in models})
+    return cu
+
+
+def documents_csv(cu):
+    """Turns the PDFs into a table with one row per document: the text plus the terms that Content Understanding extracts."""
     types = {"specification": "Specification", "offer": "Offer", "contract": "Contract"}
+    definition = EXTRACTION_DIR / "document_terms.json"
+    spec = json.loads(definition.read_text())["fieldSchema"]["fields"]
+    cu.ensure_analyzer(DOCUMENT_ANALYZER, definition)
     out = io.StringIO()
     w = csv.writer(out)
-    w.writerow(["DocId", "ProjectId", "DocType", "Title", "Content"])
+    w.writerow(["DocId", "ProjectId", "DocType", "Title", "Content"] + list(spec))
+    extracted = {}
     for pdf in sorted((DATA / "pdfs").glob("*.pdf")):
         project_id, kind = pdf.stem.split("_")
-        title, _, body = PdfReader(pdf).pages[0].extract_text().strip().partition("\n")
-        w.writerow([pdf.stem, project_id, types[kind], title.strip(), re.sub(r"\s+", " ", body).strip()])
+        content = cu.analyze_file(DOCUMENT_ANALYZER, pdf)
+        values = {t: field_value(content["fields"].get(t)) for t in spec}
+        confidence = {t: content["fields"].get(t, {}).get("confidence") for t in spec if values[t] is not None}
+        extracted[pdf.stem] = (values, confidence)
+        title, _, body = content["markdown"].strip().partition("\n")
+        w.writerow([pdf.stem, project_id, types[kind], title.lstrip("# ").strip(), re.sub(r"\s+", " ", body).strip()]
+                   + ["" if values[t] is None else values[t] for t in spec])
+    report_extraction(extracted)
     return out.getvalue().encode("utf-8")
+
+
+def report_extraction(extracted):
+    """Compares the extracted terms with the known values of the sample documents (extraction/expected_document_terms.json)."""
+    expected = json.loads((EXTRACTION_DIR / "expected_document_terms.json").read_text())
+    right = total = 0
+    for doc, (values, confidence) in extracted.items():
+        for term, value in values.items():
+            total += 1
+            if value == expected.get(doc, {}).get(term):
+                right += 1
+            else:
+                print(f"  Extraction differs: {doc} {term}: expected {expected.get(doc, {}).get(term)}, got {value}")
+    low = [f"{doc} {t} ({c:.2f})" for doc, (_, conf) in extracted.items() for t, c in conf.items() if c is not None and c < 0.6]
+    print(f"  Extraction: {right} of {total} fields match the expected values")
+    if low:
+        print("  Low confidence (below 0.60): " + ", ".join(low))
+
+
+def check_columns(table, header):
+    """Stops early when the columns of a CSV and of the ontology table file differ."""
+    text = (ONTOLOGY_DIR / "tables" / f"{table}.tmdl").read_text(encoding="utf-8")
+    expected = re.findall(r"(?m)^\tcolumn (\w+)$", text)
+    if sorted(header) != sorted(expected):
+        sys.exit(f"Table {table}: columns {sorted(set(header) ^ set(expected))} differ between the data and ontology/tables/{table}.tmdl")
 
 
 def upload_and_load(workspace_id, lakehouse_id):
     files = DataLakeServiceClient("https://onelake.dfs.fabric.microsoft.com", credential=cred).get_file_system_client(workspace_id)
     sources = {t: (DATA / f"{t}.csv").read_bytes() for t in TABLES if t != "documents"}
-    sources["documents"] = documents_csv()
+    sources["documents"] = documents_csv(content_understanding())
     for table, content in sources.items():
+        check_columns(table, next(csv.reader(io.StringIO(content.decode("utf-8")))))
         files.get_file_client(f"{lakehouse_id}/Files/{table}.csv").upload_data(content, overwrite=True)
         fabric("POST", f"/workspaces/{workspace_id}/lakehouses/{lakehouse_id}/tables/{table}/load", json={
             "relativePath": f"Files/{table}.csv",
@@ -102,17 +152,32 @@ def upload_and_load(workspace_id, lakehouse_id):
 
 # ---------- Ontology (TMDL) ----------
 
-def ontology_parts(sql_server, sql_db_id):
-    """Reads ontology/ and fills the two environment specific values of the SQL endpoint."""
+def definition_parts(folder, sql_server, sql_db_id):
+    """Reads a TMDL folder and fills the two environment specific values of the SQL endpoint."""
     values = {"{{SQL_SERVER}}": sql_server, "{{SQL_DATABASE_ID}}": sql_db_id}
     parts = []
-    for file in sorted(f for f in ONTOLOGY_DIR.rglob("*") if f.is_file()):
+    for file in sorted(f for f in folder.rglob("*") if f.is_file()):
         text = file.read_text(encoding="utf-8")
         for placeholder, value in values.items():
             text = text.replace(placeholder, value)
-        parts.append({"path": file.relative_to(ONTOLOGY_DIR).as_posix(),
+        parts.append({"path": file.relative_to(folder).as_posix(),
                       "payload": base64.b64encode(text.encode()).decode(), "payloadType": "InlineBase64"})
     return parts
+
+
+def ontology_parts(sql_server, sql_db_id):
+    return definition_parts(ONTOLOGY_DIR, sql_server, sql_db_id)
+
+
+def create_or_update(ws_id, kind, name, definition):
+    """Creates a Fabric item (path segment kind, for example ontologies) or replaces its definition."""
+    item = find(f"/workspaces/{ws_id}/{kind}", name)
+    if item:
+        fabric("POST", f"/workspaces/{ws_id}/{kind}/{item['id']}/updateDefinition", json={"definition": definition})
+    else:
+        fabric("POST", f"/workspaces/{ws_id}/{kind}", json={"displayName": name, "definition": definition})
+        item = find(f"/workspaces/{ws_id}/{kind}", name)
+    return item["id"]
 
 
 # ---------- Flow ----------
@@ -149,41 +214,51 @@ def setup_fabric():
         time.sleep(10)
 
     print("Fabric: creating the ontology")
-    definition = {"parts": ontology_parts(sql["connectionString"], sql["id"])}
-    ontology = find(f"/workspaces/{ws_id}/ontologies", ONTOLOGY_NAME)
-    if ontology:
-        fabric("POST", f"/workspaces/{ws_id}/ontologies/{ontology['id']}/updateDefinition", json={"definition": definition})
-    else:
-        fabric("POST", f"/workspaces/{ws_id}/ontologies", json={"displayName": ONTOLOGY_NAME, "definition": definition})
-        ontology = find(f"/workspaces/{ws_id}/ontologies", ONTOLOGY_NAME)
-    return ws_id, ontology["id"]
+    ontology_id = create_or_update(ws_id, "ontologies", ONTOLOGY_NAME,
+                                   {"parts": ontology_parts(sql["connectionString"], sql["id"])})
+
+    print("Fabric: creating the semantic model")
+    parts = definition_parts(SEMANTIC_MODEL_DIR, sql["connectionString"], sql["id"])
+    model_id = create_or_update(ws_id, "semanticModels", SEMANTIC_MODEL_NAME, {"parts": parts})
+    return ws_id, ontology_id, model_id
 
 
-def setup_agent(ws_id, ontology_id):
+def create_connection(name, target):
     sub, rg, account, project = env("AZURE_SUBSCRIPTION_ID"), env("AZURE_RESOURCE_GROUP"), env("FOUNDRY_ACCOUNT_NAME"), env("FOUNDRY_PROJECT_NAME")
-    print("Foundry: creating the Fabric IQ connection")
     url = (f"https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/"
-           f"accounts/{account}/projects/{project}/connections/{CONNECTION_NAME}?api-version=2025-10-01-preview")
+           f"accounts/{account}/projects/{project}/connections/{name}?api-version=2025-10-01-preview")
     body = {"properties": {
         "category": "RemoteTool",
         "authType": "UserEntraToken",
-        "target": f"https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{ws_id}/items/{ontology_id}/ontologyEndpoint",
+        "target": target,
         "audience": "https://analysis.windows.net/powerbi/api",
         "isSharedToAll": True,
     }}
     r = requests.put(url, headers=headers("https://management.azure.com/.default"), json=body)
     if not r.ok:
-        sys.exit(f"Connection failed: {r.status_code} {r.text}")
+        sys.exit(f"Connection {name} failed: {r.status_code} {r.text}")
+    return r.json()["id"]
+
+
+def setup_agent(ws_id, ontology_id, model_id):
+    print("Foundry: creating the Fabric IQ connections")
+    ontology_connection = create_connection(
+        ONTOLOGY_CONNECTION, f"https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{ws_id}/items/{ontology_id}/ontologyEndpoint")
+    model_connection = create_connection(SEMANTIC_MODEL_CONNECTION, "https://api.fabric.microsoft.com/v1/mcp/fabricaihub/integrations/m365")
 
     print("Foundry: creating the agent")
     instructions = (DATA.parent / "scripts" / "agent_instructions.txt").read_text(encoding="utf-8")
+    instructions = instructions.replace("{{SEMANTIC_MODEL_NAME}}", SEMANTIC_MODEL_NAME).replace("{{SEMANTIC_MODEL_ID}}", model_id)
     with AIProjectClient(endpoint=env("FOUNDRY_PROJECT_ENDPOINT"), credential=cred) as client:
         agent = client.agents.create_version(
             agent_name=AGENT_NAME,
             definition=PromptAgentDefinition(
                 model=env("FOUNDRY_MODEL_NAME"),
                 instructions=instructions,
-                tools=[FabricIQPreviewTool(project_connection_id=r.json()["id"], require_approval="never")],
+                tools=[
+                    FabricIQPreviewTool(project_connection_id=ontology_connection, server_label="fabriciq-ontology", require_approval="never"),
+                    FabricIQPreviewTool(project_connection_id=model_connection, server_label="fabriciq-semantic-model", require_approval="never"),
+                ],
             ),
         )
         print(f"  Agent {agent.name} version {agent.version}")
@@ -194,5 +269,5 @@ def setup_agent(ws_id, ontology_id):
 
 
 if __name__ == "__main__":
-    workspace_id, ontology_id = setup_fabric()
-    setup_agent(workspace_id, ontology_id)
+    workspace_id, ontology_id, model_id = setup_fabric()
+    setup_agent(workspace_id, ontology_id, model_id)

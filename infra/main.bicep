@@ -17,6 +17,11 @@ param modelName string = 'gpt-4.1'
 param modelVersion string = '2025-04-14'
 param modelCapacity int = 50
 
+// Content Understanding needs an embedding model next to the chat model
+param embeddingName string = 'text-embedding-3-small'
+param embeddingVersion string = '1'
+param embeddingCapacity int = 20
+
 var suffix = take(uniqueString(resourceGroup().id), 6)
 var accountName = 'ai-${baseName}-${suffix}'
 var foundryUserRole = '53ca6127-db72-4b80-b1b0-d745d6d5456d'
@@ -45,11 +50,21 @@ resource model 'Microsoft.CognitiveServices/accounts/deployments@2026-03-01' = {
   }
 }
 
+resource embedding 'Microsoft.CognitiveServices/accounts/deployments@2026-03-01' = {
+  parent: account
+  name: embeddingName
+  dependsOn: [model] // operations on the same account must not run in parallel
+  sku: { name: 'GlobalStandard', capacity: embeddingCapacity }
+  properties: {
+    model: { format: 'OpenAI', name: embeddingName, version: embeddingVersion }
+  }
+}
+
 resource project 'Microsoft.CognitiveServices/accounts/projects@2026-03-01' = {
   parent: account
   name: 'project-planning'
   location: location
-  dependsOn: [model] // operations on the same account must not run in parallel
+  dependsOn: [embedding] // operations on the same account must not run in parallel
   identity: { type: 'SystemAssigned' }
   properties: {
     displayName: 'Project Planning'
@@ -125,5 +140,6 @@ output foundryAccountName string = account.name
 output foundryProjectName string = project.name
 output foundryProjectEndpoint string = 'https://${account.name}.services.ai.azure.com/api/projects/${project.name}'
 output modelDeployment string = model.name
+output embeddingDeployment string = embedding.name
 output fabricCapacityName string = capacity.name
 output logAnalyticsWorkspaceId string = logs.properties.customerId

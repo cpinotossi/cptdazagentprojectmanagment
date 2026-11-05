@@ -1,0 +1,24 @@
+{
+  "P-100_specification": {
+    "CompletionDate": "2027-12-15"
+  },
+  "P-100_offer": {
+    "TermStart": "2027-01-01",
+    "TermEnd": "2027-12-15",
+    "FixedPriceEur": 2400000,
+    "AssumedPermitDate": "2027-01-31",
+    "ChangeRateEurPerHour": 85
+  },
+  "P-100_contract": {
+    "AcceptanceDeadline": "2028-01-15",
+    "PenaltyPercentPerWorkingDay": 0.2,
+    "PenaltyCapPercent": 5,
+    "WithdrawalDelayWeeks": 8
+  },
+  "P-200_contract": {
+    "TermStart": "2027-03-01",
+    "TermEnd": "2028-06-30",
+    "BudgetEur": 5000000,
+    "OverrunApprovalThresholdPercent": 10
+  }
+}

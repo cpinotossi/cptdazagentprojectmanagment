@@ -40,7 +40,7 @@ entity Project
 
 	/// Planned start date (YYYY-MM-DD).
 	property StartDate
-		dataType: string
+		dataType: dateTime
 		lineageTag: b33bf0b1-b4ca-51fd-8d87-ad9770c1fd84
 
 		backingConfiguration
@@ -48,7 +48,7 @@ entity Project
 
 	/// Planned completion date (YYYY-MM-DD).
 	property EndDate
-		dataType: string
+		dataType: dateTime
 		lineageTag: 1e493586-996f-5075-b399-81017037afb0
 
 		backingConfiguration
@@ -56,7 +56,7 @@ entity Project
 
 	/// Project budget in euros (EUR).
 	property BudgetEur
-		dataType: string
+		dataType: double
 		lineageTag: fcf4d482-fe63-52fe-84c1-94ba1dafb227
 
 		backingConfiguration

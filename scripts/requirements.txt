@@ -2,4 +2,3 @@ requests
 azure-identity
 azure-storage-file-datalake
 azure-ai-projects>=2.2.0
-pypdf

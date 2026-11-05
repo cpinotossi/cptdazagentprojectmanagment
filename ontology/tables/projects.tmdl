@@ -22,17 +22,19 @@ table projects
 		sourceColumn: ManagerId
 
 	column StartDate
-		dataType: string
+		dataType: dateTime
+		formatString: General Date
 		lineageTag: c6640172-fade-586e-9dfd-7baaaf0f4fe6
 		sourceColumn: StartDate
 
 	column EndDate
-		dataType: string
+		dataType: dateTime
+		formatString: General Date
 		lineageTag: b42aa3df-12f8-595e-bcf5-70c347257ebe
 		sourceColumn: EndDate
 
 	column BudgetEur
-		dataType: string
+		dataType: double
 		lineageTag: 18e67345-ccb7-524b-9af6-d30c1e530c62
 		sourceColumn: BudgetEur
 

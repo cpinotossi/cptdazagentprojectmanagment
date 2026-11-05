@@ -1,0 +1,51 @@
+table tasks
+	lineageTag: eecfa9ec-cc0a-5a10-9e47-6894ca458c9f
+
+	/// Duration in calendar days from the first StartDate to the last EndDate, both days counted. For one task this is the duration of that task.
+	measure 'Duration Days' = DATEDIFF(MIN(tasks[StartDate]), MAX(tasks[EndDate]), DAY) + 1
+		formatString: 0
+
+	/// Planned cost in euros: the sum of the cost of the tasks. Not the same as the budget of the project.
+	measure 'Planned Cost EUR' = SUM(tasks[CostEur])
+		formatString: #,##0
+
+	column TaskId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: TaskId
+
+	column ProjectId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ProjectId
+
+	column Name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Name
+
+	column StartDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: StartDate
+
+	column EndDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: EndDate
+
+	column CostEur
+		dataType: double
+		isHidden
+		summarizeBy: none
+		sourceColumn: CostEur
+
+	partition tasks = entity
+		mode: directLake
+		source
+			entityName: tasks
+			schemaName: dbo
+			expressionSource: DatabaseQuery

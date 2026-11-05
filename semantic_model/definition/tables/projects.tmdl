@@ -1,0 +1,46 @@
+table projects
+	lineageTag: 3b6f8079-9bfb-5e79-ab49-a6d723274c83
+
+	/// Budget in euros that the customer approved for the project.
+	measure 'Budget EUR' = SUM(projects[BudgetEur])
+		formatString: #,##0
+
+	/// Planned cost minus budget, in euros. A positive value means the plan is over budget.
+	measure 'Budget Variance EUR' = [Planned Cost EUR] - [Budget EUR]
+		formatString: #,##0
+
+	column ProjectId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: ProjectId
+
+	column Name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Name
+
+	column StartDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: StartDate
+
+	column EndDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: EndDate
+
+	column BudgetEur
+		dataType: double
+		isHidden
+		summarizeBy: none
+		sourceColumn: BudgetEur
+
+	partition projects = entity
+		mode: directLake
+		source
+			entityName: projects
+			schemaName: dbo
+			expressionSource: DatabaseQuery

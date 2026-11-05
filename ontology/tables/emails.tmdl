@@ -27,7 +27,8 @@ table emails
 		sourceColumn: Body
 
 	column ReceivedAt
-		dataType: string
+		dataType: dateTime
+		formatString: General Date
 		lineageTag: ca0f4e5d-525b-594c-b5c0-f7f1d5480a8b
 		sourceColumn: ReceivedAt
 

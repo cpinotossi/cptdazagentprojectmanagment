@@ -26,6 +26,71 @@ table documents
 		lineageTag: 947d91fe-930e-5281-8225-c42bdd5258df
 		sourceColumn: Content
 
+	column CompletionDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: a4693c4b-8844-5be6-995a-a312eb64e064
+		sourceColumn: CompletionDate
+
+	column TermStart
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 986a3018-94da-5f27-b6a0-d9ef623c1544
+		sourceColumn: TermStart
+
+	column TermEnd
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 5980b5a1-e0f6-5275-9767-c3d4018d8890
+		sourceColumn: TermEnd
+
+	column FixedPriceEur
+		dataType: double
+		lineageTag: bab34f41-ddc2-5066-8c80-f00fa54c56ed
+		sourceColumn: FixedPriceEur
+
+	column BudgetEur
+		dataType: double
+		lineageTag: 710aef07-cef3-5611-8a09-effc30b3ef31
+		sourceColumn: BudgetEur
+
+	column AssumedPermitDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 4fdb948e-0d64-5515-bc95-abf9f9f1033a
+		sourceColumn: AssumedPermitDate
+
+	column AcceptanceDeadline
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 054bfaa4-695d-5f76-afeb-31458cca733d
+		sourceColumn: AcceptanceDeadline
+
+	column PenaltyPercentPerWorkingDay
+		dataType: double
+		lineageTag: 7ed05d97-e21a-50af-a5fd-a1af782c5bf0
+		sourceColumn: PenaltyPercentPerWorkingDay
+
+	column PenaltyCapPercent
+		dataType: double
+		lineageTag: 26b410fb-da65-5d3d-b721-f46ea3c04c93
+		sourceColumn: PenaltyCapPercent
+
+	column WithdrawalDelayWeeks
+		dataType: double
+		lineageTag: 4af4a95d-e7ec-5e38-8d97-457d80773e4c
+		sourceColumn: WithdrawalDelayWeeks
+
+	column ChangeRateEurPerHour
+		dataType: double
+		lineageTag: 83d10a5e-d1fb-5f1b-ae01-f5e7e6759714
+		sourceColumn: ChangeRateEurPerHour
+
+	column OverrunApprovalThresholdPercent
+		dataType: double
+		lineageTag: cd223f13-7126-5508-87eb-73e445e71681
+		sourceColumn: OverrunApprovalThresholdPercent
+
 	partition documents = entity
 		mode: directLake
 		source

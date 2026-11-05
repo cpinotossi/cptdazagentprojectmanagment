@@ -48,7 +48,7 @@ entity Email
 
 	/// Date the email was received (YYYY-MM-DD).
 	property ReceivedAt
-		dataType: string
+		dataType: dateTime
 		lineageTag: d9f87e60-680d-5e47-842d-b94dc1caadfe
 
 		backingConfiguration

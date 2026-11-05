@@ -20,17 +20,19 @@ Take the email "Please add a green roof with photovoltaics. This should be cover
 ```mermaid
 flowchart LR
     U[User or notebook] -->|Responses API| A[Foundry prompt agent<br/>gpt-4.1]
-    A -->|Fabric IQ tool<br/>MCP over HTTPS| O[Fabric ontology<br/>ProjectPlanning]
-    O -->|bound to| T[(Lakehouse tables<br/>projects, documents,<br/>emails, project_managers)]
+    A -->|Fabric IQ tool<br/>meaning and rules| O[Fabric ontology<br/>ProjectPlanning]
+    A -->|Fabric IQ tool<br/>exact numbers| S[Semantic model<br/>ProjectPlanningModel]
+    O -->|bound to| T[(Lakehouse tables<br/>projects, tasks, documents,<br/>emails, project_managers)]
+    S -->|Direct Lake| T
     O -.->|rules and descriptions| R[Business rules<br/>and glossary]
 ```
 
 Two platforms are involved:
 
-* Microsoft Foundry hosts the model and the agent. It only knows one tool, Fabric IQ.
-* Microsoft Fabric holds the data and the ontology. Fabric answers the questions the agent sends to the tool.
+* Microsoft Foundry hosts the model and the agent. It only knows Fabric IQ tools: one for the ontology and one for the semantic model.
+* Microsoft Fabric holds the data, the ontology and the semantic model. Fabric answers the questions the agent sends to the tools.
 
-The agent has no search index, no function code and no copy of the data. All business knowledge sits in the ontology.
+The agent has no search index, no function code and no copy of the data. The business knowledge sits in the ontology, the calculations in the semantic model.
 
 ## Fabric in five minutes
 
@@ -116,7 +118,7 @@ Blue marks the central entity type `Project`, orange the emails, green the docum
 
 The sample data has two projects, two project managers, four PDFs, five emails, 14 tasks (seven per project) and 15 dependencies between tasks. Amounts are in euros (columns `BudgetEur` and `CostEur`). The task costs of P-100 add up to exactly its budget of 2,400,000 EUR. The task costs of P-200 add up to 5,750,000 EUR, which is 15 percent above its budget of 5,000,000 EUR, so the cost warning email E-5 can be checked against the data. Every predecessor of a task ends before the task starts.
 
-The `Task` entity uses real data types (`dateTime` for the dates, `int64` for the cost), because sums and date arithmetic need them. The other entities still declare their columns as text.
+The dates and amounts use real data types (`dateTime` for dates, `double` for `BudgetEur` and `CostEur`), because sums, comparisons and date arithmetic need them. They match the column types of the lakehouse tables. All other columns are text.
 
 ### Tasks and the question about GQL
 
@@ -141,6 +143,27 @@ The rules are plain sentences, stored in the ontology:
 | `ChangeRequestPolicy` | A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price. |
 
 Each rule lists the entities and relationships it refers to, so consumers can find the rules that matter for a given entity. A rule can also carry a description with the background and annotations with extra metadata. `ChangeRequestPolicy` has both: the description explains why a change request is priced on its own, and the annotations say that it is a commercial rule that rests on the offer and the specification. The other two rules have neither yet.
+
+## A semantic model for exact numbers
+
+The ontology agent calculates inexactly. It counted 30 days for a task from 2027-01-01 to 2027-01-31 (31 days with both days counted), and an earlier answer called a delay of 59 days "exactly 8 weeks". Fabric does not promise otherwise: the documentation describes a natural language layer that turns questions into queries, and it lists a known issue with aggregation. Metrics are meant to come from the DAX measures of a Power BI semantic model, and the agent picks its query engine by the binding (SQL for lakehouse tables, DAX for semantic model measures).
+
+The demo therefore has a small semantic model, `ProjectPlanningModel`, in `semantic_model/`. It reads the lakehouse tables `projects` and `tasks` through Direct Lake and has four DAX measures:
+
+| Measure | Table | Meaning |
+|---------|-------|---------|
+| `Duration Days` | `tasks` | Days from the first start to the last end, both days counted. Filtered by `tasks[TaskId]` it is the duration of one task. |
+| `Planned Cost EUR` | `tasks` | Sum of the task costs |
+| `Budget EUR` | `projects` | Approved budget |
+| `Budget Variance EUR` | `projects` | Planned cost minus budget, positive means over budget |
+
+The agent has a second Fabric IQ tool for this model (the endpoint `fabricaihub/integrations/m365`, connection `fabric-iq-semantic-model`). This tool works differently from the ontology tool. Foundry's own model gets four tools (`DiscoverArtifacts`, `ValueSearch`, `GetReportMetadata`, `ExecuteQuery`) and writes the DAX query itself. The query is exact, but the way to it depends on the model:
+
+* With a general prompt, one of six test questions was answered correctly. `ValueSearch` found no match for an id such as T-102, because the model has no search index, and the model gave up instead of querying.
+* The agent prompt now names the model and its id, lists the measures, shows two example queries and says to skip `DiscoverArtifacts` and `ValueSearch`. With that prompt, 15 of 15 questions about the duration of two tasks and the budget variance of P-200 were right on a test agent with only this tool, and 15 of 15 on the real agent with both tools. Five runs per question is a small sample.
+* The Foundry documentation recommends newer models such as gpt-5.4 for semantic model queries. The demo runs on gpt-4.1.
+
+A combined question showed both tools working together: for the delay of task T-101 the ontology listed the six dependent tasks, and the semantic model gave their costs (2,380,000 EUR) and durations.
 
 ## The ontology as files
 
@@ -322,13 +345,15 @@ A live test confirmed that the ontology configuration drives the answer, and the
 
 * Fabric IQ and the ontology API are in preview. Names and behavior can change.
 * PDF text is stored as one text column per document. There is no chunking, no embedding and no semantic search. This works for one page per document. For large document sets, a search index (for example Azure AI Search) fits better.
-* The columns of the entities `Project`, `ProjectManager`, `ProjectDocument` and `Email` are declared as text, including the dates and the budget, although the lakehouse stores dates and the budget with proper types. This worked in all tests, but it would not be suitable for a graph or for calculations. Only `Task` has real types.
+* Until the data types were corrected, the entities `Project` and `Email` declared their dates and the budget as text, although the lakehouse stores them with proper types. That worked in all tests, but the types are now aligned with the tables.
 * Answers come from a language model, so wording and borderline ratings vary between runs. The same holiday email (a customer's office is closed over the holidays) was rated "not critical" in six of nine valid runs and "watch" in three. Both fit the rule.
 * A description of the rule `EmailCriticality` with examples for "critical", "watch" and "not critical" did not remove that variance. In ten runs after adding it, the holiday email was rated "not critical" five times and "watch" five times. With these numbers, the difference to the runs before (three of nine "watch") is not significant, and I do not know whether the endpoint reads rule descriptions when it rates an email. The statement of the rule is the more likely lever, if a stable rating is needed.
 * The model sometimes calls `list_ontology_rules` with an empty filter list. The server rejects that call and the request fails with HTTP 400. The prompt therefore does not ask the agent to list rules.
 * The model writes the tool request itself and can still drop details such as the sender address. The prompt tells it to include them word for word, which worked in five of five test runs, but a language model gives no guarantee. Fabric also gives different ratings for the same email. In three runs the site plan email was rated "not critical" twice and "critical" once.
 * Fabric limits the rate of requests to the ontology endpoint. Five agent calls at the same time returned HTTP 429 "RequestBlocked" for 8 of 15 calls, and the agent showed the error text as its answer. Even one call after the other was refused often during a longer series of about 30 calls, each time with a block of about a minute. I did not find out whether this is a service limit or a capacity limit of the small F2 SKU. Plan for a retry after a minute, and do not expect many users at the same time on this setup.
 * Now and then the endpoint accepts a call but returns no valid answer ("did not return a valid MCP JSON-RPC response"). A repeated call works.
+* Calculations by the model are not exact. An earlier answer called the delay from 2027-01-31 to 2027-03-31 "exactly 8 weeks", but it is 59 days.
+* Metrics did not help. I added two explicit metrics through TMDL, `PlannedCostEur` (sum of the task costs) and `TaskDurationDays` (days from start to end, both days counted), once with the SQL dialect and once with the NaturalLanguage dialect. Fabric stored them, but `ask_ontology` ignored them in both variants, even when the question used the exact metric name. It answered 30 instead of 31 days for task T-101 and gave the project budget instead of the task sum. The documentation explains why: metrics are meant to come from the DAX measures of a Power BI semantic model, and the agent chooses its query engine by the binding (SQL for lakehouse tables, DAX for semantic model measures). The documentation does not say that the agent uses explicit metrics on lakehouse entities. The demo uses a semantic model with DAX measures instead, see "A semantic model for exact numbers".
 * The tenant setting "Users can create Ontology (preview) items" must be on, and the Fabric capacity must be running. Pause the capacity when you are done to stop the cost.
 
 ## Glossary

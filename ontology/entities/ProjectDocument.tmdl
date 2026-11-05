@@ -45,3 +45,99 @@ entity ProjectDocument
 
 		backingConfiguration
 			valueColumn: documents.Content
+
+	/// Date by which the construction work has to be completed, as stated in the document. Empty if the document names none.
+	property CompletionDate
+		dataType: dateTime
+		lineageTag: 2b653160-cdfe-581c-b902-8067f70a854c
+
+		backingConfiguration
+			valueColumn: documents.CompletionDate
+
+	/// First day of the construction period or contract term, as stated in the document.
+	property TermStart
+		dataType: dateTime
+		lineageTag: d31fd95e-4130-5ad3-9fc0-a95b33ab5987
+
+		backingConfiguration
+			valueColumn: documents.TermStart
+
+	/// Last day of the construction period or contract term, as stated in the document.
+	property TermEnd
+		dataType: dateTime
+		lineageTag: 77c03d40-5133-5b4b-a47f-b0073f16524f
+
+		backingConfiguration
+			valueColumn: documents.TermEnd
+
+	/// Fixed price of the work in euros, net. Only offers state it.
+	property FixedPriceEur
+		dataType: double
+		lineageTag: d55f8e21-1903-5073-af61-34f0e3c2233b
+
+		backingConfiguration
+			valueColumn: documents.FixedPriceEur
+
+	/// Budget of the client in euros, as stated in the document. Only framework contracts state it.
+	property BudgetEur
+		dataType: double
+		lineageTag: 6db0db44-8536-555f-b6fd-6cda650773c4
+
+		backingConfiguration
+			valueColumn: documents.BudgetEur
+
+	/// Date by which the document assumes that the building permit is issued. If the real permit comes later, the assumption is broken.
+	property AssumedPermitDate
+		dataType: dateTime
+		lineageTag: fe57eb13-28a0-53d8-a1aa-09854edf6898
+
+		backingConfiguration
+			valueColumn: documents.AssumedPermitDate
+
+	/// Latest date for the acceptance of the finished work.
+	property AcceptanceDeadline
+		dataType: dateTime
+		lineageTag: 0efd81bd-c6d7-5ab3-bbfd-8aa99e853de1
+
+		backingConfiguration
+			valueColumn: documents.AcceptanceDeadline
+
+	/// Contractual penalty for delay in percent of the contract value per working day.
+	property PenaltyPercentPerWorkingDay
+		dataType: double
+		lineageTag: 68e176e1-5aa1-5d0c-8f88-104a2a1bca5c
+
+		backingConfiguration
+			valueColumn: documents.PenaltyPercentPerWorkingDay
+
+	/// Maximum of the contractual penalty in percent of the contract value.
+	property PenaltyCapPercent
+		dataType: double
+		lineageTag: 7e2fac83-a016-5b76-9ffe-63e799b008dd
+
+		backingConfiguration
+			valueColumn: documents.PenaltyCapPercent
+
+	/// Number of weeks of delay after which the client may withdraw from the contract.
+	property WithdrawalDelayWeeks
+		dataType: double
+		lineageTag: d02a6742-1945-5dea-97f9-873c3ac70a41
+
+		backingConfiguration
+			valueColumn: documents.WithdrawalDelayWeeks
+
+	/// Hourly rate in euros that is charged for changes outside the specification.
+	property ChangeRateEurPerHour
+		dataType: double
+		lineageTag: 638151f8-718d-5da5-a60a-a242f15132fc
+
+		backingConfiguration
+			valueColumn: documents.ChangeRateEurPerHour
+
+	/// Percentage by which the budget may be exceeded before the client has to approve in writing.
+	property OverrunApprovalThresholdPercent
+		dataType: double
+		lineageTag: 629e4132-b544-5fd3-857d-108b0c7a9605
+
+		backingConfiguration
+			valueColumn: documents.OverrunApprovalThresholdPercent

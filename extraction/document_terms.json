@@ -1,0 +1,76 @@
+{
+  "description": "Extracts the key terms of construction specifications, offers and contracts",
+  "baseAnalyzerId": "prebuilt-document",
+  "models": {
+    "completion": "gpt-4.1",
+    "embedding": "text-embedding-3-small"
+  },
+  "config": {
+    "returnDetails": true,
+    "estimateFieldSourceAndConfidence": true
+  },
+  "fieldSchema": {
+    "fields": {
+      "CompletionDate": {
+        "type": "date",
+        "method": "extract",
+        "description": "Date by which the construction work has to be completed. Leave empty if the document names no completion date."
+      },
+      "TermStart": {
+        "type": "date",
+        "method": "extract",
+        "description": "First day of the construction period or contract term. Leave empty if not stated."
+      },
+      "TermEnd": {
+        "type": "date",
+        "method": "extract",
+        "description": "Last day of the construction period or contract term. Leave empty if not stated."
+      },
+      "FixedPriceEur": {
+        "type": "number",
+        "method": "extract",
+        "description": "Fixed price of the work in euros, net, as a plain number. Leave empty if the document names no fixed price."
+      },
+      "BudgetEur": {
+        "type": "number",
+        "method": "extract",
+        "description": "Budget of the client in euros, as a plain number. Leave empty if the document names no budget."
+      },
+      "AssumedPermitDate": {
+        "type": "date",
+        "method": "extract",
+        "description": "Date by which the document assumes that the building permit is issued. Leave empty if there is no such assumption."
+      },
+      "AcceptanceDeadline": {
+        "type": "date",
+        "method": "extract",
+        "description": "Latest date for the acceptance of the finished work. Leave empty if not stated."
+      },
+      "PenaltyPercentPerWorkingDay": {
+        "type": "number",
+        "method": "extract",
+        "description": "Contractual penalty for delay, in percent of the contract value per working day. Leave empty if there is no penalty clause."
+      },
+      "PenaltyCapPercent": {
+        "type": "number",
+        "method": "extract",
+        "description": "Maximum of the contractual penalty in percent of the contract value. Leave empty if there is no cap."
+      },
+      "WithdrawalDelayWeeks": {
+        "type": "number",
+        "method": "extract",
+        "description": "Number of weeks of delay after which the client may withdraw from the contract. Leave empty if there is no such clause."
+      },
+      "ChangeRateEurPerHour": {
+        "type": "number",
+        "method": "extract",
+        "description": "Hourly rate in euros that is charged for changes outside the specification. Leave empty if there is no such rate."
+      },
+      "OverrunApprovalThresholdPercent": {
+        "type": "number",
+        "method": "extract",
+        "description": "Percentage by which the budget may be exceeded before the client has to approve in writing. Leave empty if there is no such clause."
+      }
+    }
+  }
+}

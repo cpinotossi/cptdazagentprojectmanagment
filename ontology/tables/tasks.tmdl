@@ -29,8 +29,7 @@ table tasks
 		sourceColumn: EndDate
 
 	column CostEur
-		dataType: int64
-		formatString: 0
+		dataType: double
 		lineageTag: eed8b676-4fad-5ed1-9605-d4054d61b0ee
 		sourceColumn: CostEur
 
