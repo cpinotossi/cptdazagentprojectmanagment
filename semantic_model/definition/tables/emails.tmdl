@@ -1,0 +1,41 @@
+table emails
+	lineageTag: 1ec278d4-755b-5184-8323-add7778748ed
+
+	column MailId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: MailId
+
+	column ProjectId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ProjectId
+
+	column Sender
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Sender
+
+	column Subject
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Subject
+
+	column Body
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Body
+
+	column ReceivedAt
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: ReceivedAt
+
+	partition emails = entity
+		mode: directLake
+		source
+			entityName: emails
+			schemaName: dbo
+			expressionSource: DatabaseQuery

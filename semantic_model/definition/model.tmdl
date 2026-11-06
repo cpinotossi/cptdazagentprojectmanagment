@@ -3,6 +3,10 @@ model Model
 	defaultPowerBIDataSourceVersion: powerBI_V3
 	discourageImplicitMeasures
 
+ref table project_managers
 ref table projects
+ref table documents
+ref table emails
 ref table tasks
+ref table task_dependencies
 ref expression DatabaseQuery

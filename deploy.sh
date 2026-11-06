@@ -15,7 +15,8 @@ az deployment group create -g "$AZURE_RESOURCE_GROUP" -n main -o none \
   --template-file infra/main.bicep \
   --parameters location="$LOCATION" \
                principalId="$(az ad signed-in-user show --query id -o tsv)" \
-               fabricAdminUpn="$(az ad signed-in-user show --query userPrincipalName -o tsv)"
+               fabricAdminUpn="$(az ad signed-in-user show --query userPrincipalName -o tsv)" \
+               fabricSku="${FABRIC_SKU:-F2}"
 
 export FOUNDRY_ACCOUNT_NAME="$(out foundryAccountName)"
 export FOUNDRY_PROJECT_NAME="$(out foundryProjectName)"

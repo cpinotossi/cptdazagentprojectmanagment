@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -30,7 +31,6 @@ SEMANTIC_MODEL_DIR = Path(__file__).resolve().parent.parent / "semantic_model"
 SEMANTIC_MODEL_NAME = "ProjectPlanningModel"
 AGENT_NAME = "project-planning-agent"
 ONTOLOGY_CONNECTION = "fabric-iq-ontology"
-SEMANTIC_MODEL_CONNECTION = "fabric-iq-semantic-model"
 
 # The ontology itself (entities, descriptions, synonyms, relationships, rules, bindings) lives in
 # ontology/ as TMDL files, the Fabric ontology definition format. Agents read the descriptions
@@ -127,11 +127,12 @@ def report_extraction(extracted):
 
 
 def check_columns(table, header):
-    """Stops early when the columns of a CSV and of the ontology table file differ."""
-    text = (ONTOLOGY_DIR / "tables" / f"{table}.tmdl").read_text(encoding="utf-8")
-    expected = re.findall(r"(?m)^\tcolumn (\w+)$", text)
-    if sorted(header) != sorted(expected):
-        sys.exit(f"Table {table}: columns {sorted(set(header) ^ set(expected))} differ between the data and ontology/tables/{table}.tmdl")
+    """Stops early when the columns of a CSV, the ontology table file and the semantic model table file differ."""
+    files = [f"ontology/tables/{table}.tmdl", f"semantic_model/definition/tables/{table}.tmdl"]
+    for relative in files:
+        expected = re.findall(r"(?m)^\tcolumn (\w+)$", (ONTOLOGY_DIR.parent / relative).read_text(encoding="utf-8"))
+        if sorted(header) != sorted(expected):
+            sys.exit(f"Table {table}: columns {sorted(set(header) ^ set(expected))} differ between the data and {relative}")
 
 
 def upload_and_load(workspace_id, lakehouse_id):
@@ -152,9 +153,16 @@ def upload_and_load(workspace_id, lakehouse_id):
 
 # ---------- Ontology (TMDL) ----------
 
-def definition_parts(folder, sql_server, sql_db_id):
-    """Reads a TMDL folder and fills the two environment specific values of the SQL endpoint."""
-    values = {"{{SQL_SERVER}}": sql_server, "{{SQL_DATABASE_ID}}": sql_db_id}
+def environment_values(ws_id, sql, model_id=""):
+    """The values that differ per environment, for the placeholders in the TMDL files."""
+    return {"{{SQL_SERVER}}": sql["connectionString"], "{{SQL_DATABASE_ID}}": sql["id"],
+            "{{WORKSPACE_ID}}": ws_id, "{{WORKSPACE_NAME}}": WORKSPACE_NAME,
+            "{{SEMANTIC_MODEL_ID}}": model_id, "{{SEMANTIC_MODEL_NAME}}": SEMANTIC_MODEL_NAME,
+            "{{PINNED_AT_UTC}}": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+
+
+def definition_parts(folder, values):
+    """Reads a TMDL folder and fills the environment specific placeholders."""
     parts = []
     for file in sorted(f for f in folder.rglob("*") if f.is_file()):
         text = file.read_text(encoding="utf-8")
@@ -165,8 +173,8 @@ def definition_parts(folder, sql_server, sql_db_id):
     return parts
 
 
-def ontology_parts(sql_server, sql_db_id):
-    return definition_parts(ONTOLOGY_DIR, sql_server, sql_db_id)
+def ontology_parts(values):
+    return definition_parts(ONTOLOGY_DIR, values)
 
 
 def create_or_update(ws_id, kind, name, definition):
@@ -213,14 +221,14 @@ def setup_fabric():
             break
         time.sleep(10)
 
+    print("Fabric: creating the semantic model")
+    parts = definition_parts(SEMANTIC_MODEL_DIR, environment_values(ws_id, sql))
+    model_id = create_or_update(ws_id, "semanticModels", SEMANTIC_MODEL_NAME, {"parts": parts})
+
     print("Fabric: creating the ontology")
     ontology_id = create_or_update(ws_id, "ontologies", ONTOLOGY_NAME,
-                                   {"parts": ontology_parts(sql["connectionString"], sql["id"])})
-
-    print("Fabric: creating the semantic model")
-    parts = definition_parts(SEMANTIC_MODEL_DIR, sql["connectionString"], sql["id"])
-    model_id = create_or_update(ws_id, "semanticModels", SEMANTIC_MODEL_NAME, {"parts": parts})
-    return ws_id, ontology_id, model_id
+                                   {"parts": ontology_parts(environment_values(ws_id, sql, model_id))})
+    return ws_id, ontology_id
 
 
 def create_connection(name, target):
@@ -240,25 +248,20 @@ def create_connection(name, target):
     return r.json()["id"]
 
 
-def setup_agent(ws_id, ontology_id, model_id):
-    print("Foundry: creating the Fabric IQ connections")
-    ontology_connection = create_connection(
+def setup_agent(ws_id, ontology_id):
+    print("Foundry: creating the Fabric IQ connection")
+    connection = create_connection(
         ONTOLOGY_CONNECTION, f"https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{ws_id}/items/{ontology_id}/ontologyEndpoint")
-    model_connection = create_connection(SEMANTIC_MODEL_CONNECTION, "https://api.fabric.microsoft.com/v1/mcp/fabricaihub/integrations/m365")
 
     print("Foundry: creating the agent")
     instructions = (DATA.parent / "scripts" / "agent_instructions.txt").read_text(encoding="utf-8")
-    instructions = instructions.replace("{{SEMANTIC_MODEL_NAME}}", SEMANTIC_MODEL_NAME).replace("{{SEMANTIC_MODEL_ID}}", model_id)
     with AIProjectClient(endpoint=env("FOUNDRY_PROJECT_ENDPOINT"), credential=cred) as client:
         agent = client.agents.create_version(
             agent_name=AGENT_NAME,
             definition=PromptAgentDefinition(
                 model=env("FOUNDRY_MODEL_NAME"),
                 instructions=instructions,
-                tools=[
-                    FabricIQPreviewTool(project_connection_id=ontology_connection, server_label="fabriciq-ontology", require_approval="never"),
-                    FabricIQPreviewTool(project_connection_id=model_connection, server_label="fabriciq-semantic-model", require_approval="never"),
-                ],
+                tools=[FabricIQPreviewTool(project_connection_id=connection, require_approval="never")],
             ),
         )
         print(f"  Agent {agent.name} version {agent.version}")
@@ -269,5 +272,5 @@ def setup_agent(ws_id, ontology_id, model_id):
 
 
 if __name__ == "__main__":
-    workspace_id, ontology_id, model_id = setup_fabric()
-    setup_agent(workspace_id, ontology_id, model_id)
+    workspace_id, ontology_id = setup_fabric()
+    setup_agent(workspace_id, ontology_id)

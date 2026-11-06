@@ -38,6 +38,16 @@ table projects
 		summarizeBy: none
 		sourceColumn: BudgetEur
 
+	column Customer
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Customer
+
+	column ManagerId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ManagerId
+
 	partition projects = entity
 		mode: directLake
 		source

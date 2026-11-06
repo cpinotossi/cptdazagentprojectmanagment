@@ -11,9 +11,15 @@ table task_dependencies
 		lineageTag: 1a2b662c-86c1-56d9-aaf4-0074003c383a
 		sourceColumn: PredecessorId
 
-	partition task_dependencies = entity
-		mode: directLake
+	partition task_dependencies-partition = entity
+		mode: directQuery
 		source
 			entityName: task_dependencies
-			schemaName: dbo
-			expressionSource: DatabaseQuery
+			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+
+		annotation ONT_WorkspaceId = {{WORKSPACE_ID}}
+		annotation ONT_ItemId = {{SEMANTIC_MODEL_ID}}
+		annotation ONT_ItemKind = Dataset
+		annotation ONT_ItemName = {{SEMANTIC_MODEL_NAME}}
+		annotation ONT_WorkspaceName = {{WORKSPACE_NAME}}
+		annotation ONT_PinnedAtUtc = {{PINNED_AT_UTC}}

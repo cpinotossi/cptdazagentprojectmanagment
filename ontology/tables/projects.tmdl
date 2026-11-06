@@ -1,6 +1,16 @@
 table projects
 	lineageTag: 7e8dc04b-6d05-5b23-b8d2-01640ad456b2
 
+	/// Budget in euros that the customer approved for the project.
+	measure 'Budget EUR' = EXTERNALMEASURE("Budget EUR", DOUBLE, "DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}")
+		formatString: #,##0
+		lineageTag: 7f26bbbe-24ad-5267-8aca-6cf21b26cd43
+
+	/// Planned cost minus budget, in euros. A positive value means the plan is over budget.
+	measure 'Budget Variance EUR' = EXTERNALMEASURE("Budget Variance EUR", DOUBLE, "DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}")
+		formatString: #,##0
+		lineageTag: 6752e08d-2042-5333-82b6-f3c6779cee8d
+
 	column ProjectId
 		dataType: string
 		lineageTag: cdb43ee7-cff1-5757-8575-f5ac98c2fdf8
@@ -38,9 +48,15 @@ table projects
 		lineageTag: 18e67345-ccb7-524b-9af6-d30c1e530c62
 		sourceColumn: BudgetEur
 
-	partition projects = entity
-		mode: directLake
+	partition projects-partition = entity
+		mode: directQuery
 		source
 			entityName: projects
-			schemaName: dbo
-			expressionSource: DatabaseQuery
+			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+
+		annotation ONT_WorkspaceId = {{WORKSPACE_ID}}
+		annotation ONT_ItemId = {{SEMANTIC_MODEL_ID}}
+		annotation ONT_ItemKind = Dataset
+		annotation ONT_ItemName = {{SEMANTIC_MODEL_NAME}}
+		annotation ONT_WorkspaceName = {{WORKSPACE_NAME}}
+		annotation ONT_PinnedAtUtc = {{PINNED_AT_UTC}}

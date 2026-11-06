@@ -22,8 +22,9 @@ def main():
     lakehouse = setup.find(f"/workspaces/{ws}/lakehouses", setup.LAKEHOUSE_NAME)["id"]
     sql = setup.fabric("GET", f"/workspaces/{ws}/lakehouses/{lakehouse}")["properties"]["sqlEndpointProperties"]
     ontology = setup.find(f"/workspaces/{ws}/ontologies", setup.ONTOLOGY_NAME)["id"]
+    model = setup.find(f"/workspaces/{ws}/semanticModels", setup.SEMANTIC_MODEL_NAME)["id"]
 
-    parts = setup.ontology_parts(sql["connectionString"], sql["id"])
+    parts = setup.ontology_parts(setup.environment_values(ws, sql, model))
     if args.rule:
         path = f"rules/{args.rule}.tmdl"
         part = next((p for p in parts if p["path"] == path), None)

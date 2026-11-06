@@ -1,3 +1,24 @@
-relationship tasks_to_projects
+relationship rel_project_managed_by
+	fromColumn: projects.ManagerId
+	toColumn: project_managers.ManagerId
+
+relationship rel_document_of_project
+	fromColumn: documents.ProjectId
+	toColumn: projects.ProjectId
+
+relationship rel_email_about_project
+	fromColumn: emails.ProjectId
+	toColumn: projects.ProjectId
+
+relationship rel_task_of_project
 	fromColumn: tasks.ProjectId
 	toColumn: projects.ProjectId
+
+relationship rel_dependency_task
+	fromColumn: task_dependencies.TaskId
+	toColumn: tasks.TaskId
+
+relationship rel_dependency_predecessor
+	isActive: false
+	fromColumn: task_dependencies.PredecessorId
+	toColumn: tasks.TaskId

@@ -1,0 +1,100 @@
+table documents
+	lineageTag: 2b77ef49-3c72-5a08-849b-19de44fddb44
+
+	column DocId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: DocId
+
+	column ProjectId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: ProjectId
+
+	column DocType
+		dataType: string
+		summarizeBy: none
+		sourceColumn: DocType
+
+	column Title
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Title
+
+	column Content
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Content
+
+	column CompletionDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: CompletionDate
+
+	column TermStart
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: TermStart
+
+	column TermEnd
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: TermEnd
+
+	column FixedPriceEur
+		dataType: double
+		summarizeBy: none
+		sourceColumn: FixedPriceEur
+
+	column BudgetEur
+		dataType: double
+		summarizeBy: none
+		sourceColumn: BudgetEur
+
+	column AssumedPermitDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: AssumedPermitDate
+
+	column AcceptanceDeadline
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: AcceptanceDeadline
+
+	column PenaltyPercentPerWorkingDay
+		dataType: double
+		summarizeBy: none
+		sourceColumn: PenaltyPercentPerWorkingDay
+
+	column PenaltyCapPercent
+		dataType: double
+		summarizeBy: none
+		sourceColumn: PenaltyCapPercent
+
+	column WithdrawalDelayWeeks
+		dataType: double
+		summarizeBy: none
+		sourceColumn: WithdrawalDelayWeeks
+
+	column ChangeRateEurPerHour
+		dataType: double
+		summarizeBy: none
+		sourceColumn: ChangeRateEurPerHour
+
+	column OverrunApprovalThresholdPercent
+		dataType: double
+		summarizeBy: none
+		sourceColumn: OverrunApprovalThresholdPercent
+
+	partition documents = entity
+		mode: directLake
+		source
+			entityName: documents
+			schemaName: dbo
+			expressionSource: DatabaseQuery

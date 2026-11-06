@@ -1,6 +1,8 @@
-expression DatabaseQuery =
+expression 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}' =
 		let
-		    database = Sql.Database("{{SQL_SERVER}}", "{{SQL_DATABASE_ID}}")
+		    Source = AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/WORKSPACE_NAME_PLACEHOLDER", "{{SEMANTIC_MODEL_NAME}}"),
+		    Cubes = Table.Combine(Source[Data]),
+		    Cube = Cubes{[Id="Model", Kind="Cube"]}[Data]
 		in
-		    database
-	lineageTag: eb0ac605-9402-5f51-8049-4fa4a7a26542
+		    Cube
+	lineageTag: 458240eb-e43a-5635-96e2-5a14586f3d65

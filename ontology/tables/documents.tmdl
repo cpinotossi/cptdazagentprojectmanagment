@@ -91,9 +91,15 @@ table documents
 		lineageTag: cd223f13-7126-5508-87eb-73e445e71681
 		sourceColumn: OverrunApprovalThresholdPercent
 
-	partition documents = entity
-		mode: directLake
+	partition documents-partition = entity
+		mode: directQuery
 		source
 			entityName: documents
-			schemaName: dbo
-			expressionSource: DatabaseQuery
+			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+
+		annotation ONT_WorkspaceId = {{WORKSPACE_ID}}
+		annotation ONT_ItemId = {{SEMANTIC_MODEL_ID}}
+		annotation ONT_ItemKind = Dataset
+		annotation ONT_ItemName = {{SEMANTIC_MODEL_NAME}}
+		annotation ONT_WorkspaceName = {{WORKSPACE_NAME}}
+		annotation ONT_PinnedAtUtc = {{PINNED_AT_UTC}}

@@ -16,9 +16,15 @@ table project_managers
 		lineageTag: dbf35b42-d8a6-59fa-8516-acf669ee8e68
 		sourceColumn: Email
 
-	partition project_managers = entity
-		mode: directLake
+	partition project_managers-partition = entity
+		mode: directQuery
 		source
 			entityName: project_managers
-			schemaName: dbo
-			expressionSource: DatabaseQuery
+			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+
+		annotation ONT_WorkspaceId = {{WORKSPACE_ID}}
+		annotation ONT_ItemId = {{SEMANTIC_MODEL_ID}}
+		annotation ONT_ItemKind = Dataset
+		annotation ONT_ItemName = {{SEMANTIC_MODEL_NAME}}
+		annotation ONT_WorkspaceName = {{WORKSPACE_NAME}}
+		annotation ONT_PinnedAtUtc = {{PINNED_AT_UTC}}
