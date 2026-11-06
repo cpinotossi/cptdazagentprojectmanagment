@@ -53,10 +53,3 @@ table projects
 		source
 			entityName: projects
 			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
-
-		annotation ONT_WorkspaceId = {{WORKSPACE_ID}}
-		annotation ONT_ItemId = {{SEMANTIC_MODEL_ID}}
-		annotation ONT_ItemKind = Dataset
-		annotation ONT_ItemName = {{SEMANTIC_MODEL_NAME}}
-		annotation ONT_WorkspaceName = {{WORKSPACE_NAME}}
-		annotation ONT_PinnedAtUtc = {{PINNED_AT_UTC}}

@@ -7,7 +7,6 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -157,8 +156,7 @@ def environment_values(ws_id, sql, model_id=""):
     """The values that differ per environment, for the placeholders in the TMDL files."""
     return {"{{SQL_SERVER}}": sql["connectionString"], "{{SQL_DATABASE_ID}}": sql["id"],
             "{{WORKSPACE_ID}}": ws_id, "{{WORKSPACE_NAME}}": WORKSPACE_NAME,
-            "{{SEMANTIC_MODEL_ID}}": model_id, "{{SEMANTIC_MODEL_NAME}}": SEMANTIC_MODEL_NAME,
-            "{{PINNED_AT_UTC}}": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+            "{{SEMANTIC_MODEL_ID}}": model_id, "{{SEMANTIC_MODEL_NAME}}": SEMANTIC_MODEL_NAME}
 
 
 def definition_parts(folder, values):

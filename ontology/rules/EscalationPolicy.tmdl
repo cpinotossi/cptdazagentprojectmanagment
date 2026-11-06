@@ -1,7 +1,13 @@
+/// Applies to every email that EmailCriticality rates critical. Emails rated watch or not critical need no escalation.
 rule EscalationPolicy
 	lineageTag: d58c9bff-6a26-5b35-ae9e-ec92b75101e4
 	statement: Every critical email must be escalated to the project manager of its project within 1 working day.
 	ruleReferencedEntity Email
 	ruleReferencedEntity ProjectManager
+		propertyScope: specific
+		ruleReferencedProperty Name
+		ruleReferencedProperty Email
 	ruleReferencedRelationship 'Email About Project'
 	ruleReferencedRelationship 'Project Managed By'
+	annotation Category = Escalation
+	annotation Owner = Project management

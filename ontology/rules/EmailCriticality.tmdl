@@ -1,8 +1,27 @@
-/// How urgent an incoming email is for the project manager. Critical means the email changes or threatens the completion date, the budget, the scope or a contract clause and needs action now. Watch means nothing changes today but the email could affect schedule, cost or scope later, for example when the customer announces an absence, a delay of their own or a vague wish. Not critical means routine information that has no effect on schedule, cost, scope or contract, for example a status meeting or a request for an existing document.
+/// The project manager has to decide which incoming emails need action today and which can wait. The rating is a first triage and does not replace reading the email. It compares the email with the dates and the budget of its project and with the clauses of the specification, offer and contract of that project.
 rule EmailCriticality
 	lineageTag: 715b2ef6-b7f8-5506-a153-11dcf03bf6a2
-	statement: An email is critical if it affects the completion date, the budget or the scope of its project, or if it contradicts an assumption or clause in the specification, offer or contract of that project. An email that only needs to be monitored is rated watch. All other emails are rated not critical.
+	statement: Every incoming email must be rated critical, watch or not critical by comparing it with its project and the documents of that project. Rate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it. Rate it watch if nothing changes today but it could affect the schedule, the cost or the scope later, for example a vague wish or an absence that falls inside the term of the project (between its start date and its end date). Rate it not critical if it is routine information without effect on schedule, cost, scope or contract, for example a status meeting, a request for an existing document, or an absence that lies completely outside the term of the project. Place a date without a year in the next occurrence after the date of the email.
 	ruleReferencedEntity Email
+		propertyScope: specific
+		ruleReferencedProperty Subject
+		ruleReferencedProperty Body
+		ruleReferencedProperty Sender
+		ruleReferencedProperty ReceivedAt
+	ruleReferencedEntity Project
+		propertyScope: specific
+		ruleReferencedProperty StartDate
+		ruleReferencedProperty EndDate
+		ruleReferencedProperty BudgetEur
 	ruleReferencedEntity ProjectDocument
+		propertyScope: specific
+		ruleReferencedProperty DocType
+		ruleReferencedProperty Content
+		ruleReferencedProperty CompletionDate
+		ruleReferencedProperty AssumedPermitDate
+		ruleReferencedProperty FixedPriceEur
+		ruleReferencedProperty OverrunApprovalThresholdPercent
 	ruleReferencedRelationship 'Email About Project'
 	ruleReferencedRelationship 'Document Of Project'
+	annotation Category = Triage
+	annotation Source = Specification, offer and contract
