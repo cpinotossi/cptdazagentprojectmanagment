@@ -33,6 +33,7 @@ The ontology also carries the business knowledge, so the agent prompt stays shor
 | `data/` | Four small PDFs and CSV files as test data, amounts in EUR |
 | `notebooks/use_case.ipynb` | Bash notebook that plays the use case: an email arrives, is it critical? |
 | `docs/how-it-works.md` | Explanation of the solution for readers who know Foundry but not Fabric or ontologies |
+| `docs/microsoft-guidance.md` | Where the demo follows the Microsoft documentation, where it goes beyond it, and what stays open |
 | `deploy.sh` | Runs both steps one after the other |
 
 Bicep covers the Azure resources only. Fabric content and the agent live on the data plane, so `scripts/setup.py` creates them through REST and the SDK.
@@ -61,7 +62,7 @@ In VS Code select the kernel **Bash** (`.venv/share/jupyter/kernels/bash`). Ever
 
 ## Ontology files
 
-`ontology/` holds the Fabric ontology definition format (TMDL), the same files that the Fabric REST API and Git integration use. `setup.py` uploads the folder unchanged and only fills placeholders: workspace and semantic model in `expressions.tmdl` and in the `ONT_*` annotations of the table partitions (`{{WORKSPACE_ID}}`, `{{SEMANTIC_MODEL_ID}}`, `{{SEMANTIC_MODEL_NAME}}` and a few more). The tables use `mode: directQuery` with the semantic model as source. The measures of `projects` and `tasks` are pointers (`EXTERNALMEASURE`) to the DAX measures in `semantic_model/`. See "A semantic model for exact numbers" in `docs/how-it-works.md`.
+`ontology/` holds the Fabric ontology definition format (TMDL), the same files that the Fabric REST API and Git integration use. `setup.py` uploads the folder unchanged and only fills placeholders: workspace and semantic model in `expressions.tmdl` and in the table partitions (`{{WORKSPACE_ID}}`, `{{WORKSPACE_NAME}}`, `{{SEMANTIC_MODEL_ID}}`, `{{SEMANTIC_MODEL_NAME}}`). Fabric adds the `ONT_*` source annotations itself. The tables use `mode: directQuery` with the semantic model as source. The measures of `projects` and `tasks` are pointers (`EXTERNALMEASURE`) to the DAX measures in `semantic_model/`. See "A semantic model for exact numbers" in `docs/how-it-works.md`.
 
 | Change | Edit |
 |--------|------|
