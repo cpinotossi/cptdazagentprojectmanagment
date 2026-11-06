@@ -17,7 +17,7 @@ The demo builds on preview features. Microsoft documents the architecture, but s
 | Rule descriptions | The reference says `getDefinition` does not return them | They are stored and returned | Differs from the documentation, see below |
 | Graph and data agent | Not supported with semantic model bindings | Not used with the final setup | Matches |
 | Service principal | Not supported for the ontology MCP endpoint | The signed-in user | Matches |
-| Semantic model preparation for AI | Prep for AI (AI data schema, verified answers, AI instructions) for data agents | Not configured, upload of the files tested | Open, see below |
+| Semantic model preparation for AI | Prep for AI (AI data schema, verified answers, AI instructions) for data agents | Not configured. A test showed that the ontology endpoint ignores AI instructions | Tested, no effect |
 | Publish before use | A Fabric admin must publish each item | No publish step was needed | Open |
 | Ontology design guidance | Pages on entity types, relationships and rules | Mostly followed, rules are under-linked | Findings below |
 
@@ -92,10 +92,12 @@ In our tenant the descriptions survive. `getDefinition` returned the `///` line 
 
 What it means for this project.
 
-* In our setup `ask_ontology` writes the DAX, not a data agent. The documentation does not say whether it reads Prep for AI. I do not know.
-* The semantic model has no Prep for AI configuration. The measures have clear names and descriptions, which meets the naming advice. The measurements show no problem so far: 15 of 15 questions with the short prompt, and the same on the earlier test ontologies.
+* In our setup `ask_ontology` writes the DAX, not a data agent. The documentation does not say whether it reads Prep for AI. We tested it, see the result below: it does not read the AI instructions.
+* The semantic model has no Prep for AI configuration. The measures have clear names and descriptions, which meets the naming advice. The measurements show no problem: 12 of 12 budget and cost questions were correct on the production ontology (budget and planned cost of P-100 and P-200, and the difference), after the earlier 15 of 15 with the short prompt.
 * Ambiguity exists in the model. `BudgetEur` appears in `projects` (the approved budget) and in `documents` (a figure from the contract), and "planned cost" and "budget" are different numbers. The first can be hidden from the AI with an AI data schema, and an AI instruction can state which one means "budget".
-* The semantic model definition can hold these settings as files (`Copilot/Instructions`, `Copilot/VerifiedAnswers`, `Copilot/schema.json` in the [semantic model definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/semantic-model-definition)). We tested the upload: a test copy of the model with `Copilot/Instructions/instructions.md`, `Copilot/Instructions/version.json` and `Copilot/version.json` was accepted, but `getDefinition` returned no `Copilot/` parts, so the service discarded them. The documentation does not describe the file format, and the test with a marker instruction (0 of 3) is inconclusive for that reason. The next step is to set AI instructions in the portal on a copy of the model, read the stored parts back with `getDefinition` to learn the format, and repeat the test.
+* Where Prep for AI is stored. The portal writes the AI instructions into the semantic model definition, in `definition/cultures/en-US.tmdl`, inside the JSON of `linguisticMetadata` under the key `"CustomInstructions"`, and adds the model annotation `PBI_ProTooling = ["WebModelingEdit","CopilotTooling"]`. `getDefinition` returns the part only after the portal has finished "Applying changes". The `Copilot/Instructions/...` files from the semantic model definition article are not what the portal produces, which explains why our upload of those files was discarded earlier. The simplified schema and the verified answers were not tested, they probably live in the same culture part.
+* The test. On a copy of the model we set an AI instruction in the portal: use the measure `Budget EUR` of `projects` for budget questions, never the column of `documents`, and end every answer with the marker `ZEBRA-7731`. Then we created an ontology bound to that copy, once before and once after the instruction was stored, and asked three questions each (6 answers). The marker never appeared (0 of 6), and the numbers were correct as before. The ontology endpoint therefore does not apply the AI instructions of the semantic model. A data agent would, according to the Microsoft article, but a data agent is not available for this binding.
+* What follows for this project. AI instructions are no lever for the ambiguity. If a wrong budget ever appears, the options are to hide the `documents` column `BudgetEur` in the semantic model, to rename it (for example `ContractBudgetEur`), or to put the distinction into the entity property descriptions of the ontology. We did not need any of them so far. The test copy and its ontology were deleted.
 * The model is not a clean star schema. It has a junction table (`task_dependencies`) and an inactive relationship for the predecessor. That is needed for the dependency chain. The DAX measures for durations and costs do not depend on it.
 
 ## Agent prompt
@@ -168,7 +170,7 @@ I found no reference that builds an ontology on a semantic model by code or show
 
 ## Open points
 
-* Prep for AI settings in the semantic model and whether the ontology endpoint uses them.
+* Simplified schema and verified answers of Prep for AI were not tested with the ontology endpoint. AI instructions have no effect.
 * Whether a user without admin rights can use the ontology and the semantic model without a publish step.
 * `ONT_*` annotations: whether portal functions such as the entity data preview need them with the semantic model binding.
 * Repeat the rating measurement with more runs and new emails that were not used to tune the rule.
