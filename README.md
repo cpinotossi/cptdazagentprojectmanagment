@@ -33,6 +33,7 @@ The ontology also carries the business knowledge, so the agent prompt stays shor
 | `data/` | Four small PDFs and CSV files as test data, amounts in EUR |
 | `notebooks/use_case.ipynb` | Bash notebook that plays the use case: an email arrives, is it critical? |
 | `docs/how-it-works.md` | Explanation of the solution for readers who know Foundry but not Fabric or ontologies |
+| `docs/configuration-reference.md` | Every setting of the current setup, file by file, with Microsoft references, portal deep links, strengths and weaknesses |
 | `docs/microsoft-guidance.md` | Where the demo follows the Microsoft documentation, where it goes beyond it, and what stays open |
 | `deploy.sh` | Runs both steps one after the other |
 
