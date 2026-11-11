@@ -1,6 +1,6 @@
-expression 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}' =
+expression SemanticModelSource =
 		let
-		    Source = AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/{{WORKSPACE_NAME}}", "{{SEMANTIC_MODEL_NAME}}"),
+		    Source = AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/ProjectPlanning", "ProjectPlanningModel"),
 		    Cubes = Table.Combine(Source[Data]),
 		    Cube = Cubes{[Id="Model", Kind="Cube"]}[Data]
 		in

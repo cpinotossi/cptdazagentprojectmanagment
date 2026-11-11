@@ -10,12 +10,11 @@ import time
 from pathlib import Path
 
 import requests
-from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import FabricIQPreviewTool, PromptAgentDefinition
 from azure.identity import AzureCliCredential
 from azure.storage.filedatalake import DataLakeServiceClient
 
 from content_understanding import ContentUnderstanding, field_value
+from setup_agent import setup_agent
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 EXTRACTION_DIR = Path(__file__).resolve().parent.parent / "extraction"
@@ -28,8 +27,6 @@ ONTOLOGY_NAME = json.loads((ONTOLOGY_DIR / ".platform").read_text())["metadata"]
 TABLES = sorted(p.stem for p in (ONTOLOGY_DIR / "tables").glob("*.tmdl"))
 SEMANTIC_MODEL_DIR = Path(__file__).resolve().parent.parent / "semantic_model"
 SEMANTIC_MODEL_NAME = "ProjectPlanningModel"
-AGENT_NAME = "project-planning-agent"
-ONTOLOGY_CONNECTION = "fabric-iq-ontology"
 
 # The ontology itself (entities, descriptions, synonyms, relationships, rules, bindings) lives in
 # ontology/ as TMDL files, the Fabric ontology definition format. Agents read the descriptions
@@ -229,46 +226,19 @@ def setup_fabric():
     return ws_id, ontology_id
 
 
-def create_connection(name, target):
-    sub, rg, account, project = env("AZURE_SUBSCRIPTION_ID"), env("AZURE_RESOURCE_GROUP"), env("FOUNDRY_ACCOUNT_NAME"), env("FOUNDRY_PROJECT_NAME")
-    url = (f"https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.CognitiveServices/"
-           f"accounts/{account}/projects/{project}/connections/{name}?api-version=2025-10-01-preview")
-    body = {"properties": {
-        "category": "RemoteTool",
-        "authType": "UserEntraToken",
-        "target": target,
-        "audience": "https://analysis.windows.net/powerbi/api",
-        "isSharedToAll": True,
-    }}
-    r = requests.put(url, headers=headers("https://management.azure.com/.default"), json=body)
-    if not r.ok:
-        sys.exit(f"Connection {name} failed: {r.status_code} {r.text}")
-    return r.json()["id"]
-
-
-def setup_agent(ws_id, ontology_id):
-    print("Foundry: creating the Fabric IQ connection")
-    connection = create_connection(
-        ONTOLOGY_CONNECTION, f"https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/{ws_id}/items/{ontology_id}/ontologyEndpoint")
-
-    print("Foundry: creating the agent")
-    instructions = (DATA.parent / "scripts" / "agent_instructions.txt").read_text(encoding="utf-8")
-    with AIProjectClient(endpoint=env("FOUNDRY_PROJECT_ENDPOINT"), credential=cred) as client:
-        agent = client.agents.create_version(
-            agent_name=AGENT_NAME,
-            definition=PromptAgentDefinition(
-                model=env("FOUNDRY_MODEL_NAME"),
-                instructions=instructions,
-                tools=[FabricIQPreviewTool(project_connection_id=connection, require_approval="never")],
-            ),
-        )
-        print(f"  Agent {agent.name} version {agent.version}")
-        with client.get_openai_client(agent_name=agent.name) as openai:
-            question = "Which emails are critical for the project? Rate each one and name the project manager."
-            print(f"\nTest question: {question}\n")
-            print(openai.responses.create(input=question).output_text)
+def main():
+    workspace_id, ontology_id = setup_fabric()
+    setup_agent(
+        workspace_id, ontology_id,
+        subscription_id=env("AZURE_SUBSCRIPTION_ID"),
+        resource_group=env("AZURE_RESOURCE_GROUP"),
+        account_name=env("FOUNDRY_ACCOUNT_NAME"),
+        project_name=env("FOUNDRY_PROJECT_NAME"),
+        endpoint=env("FOUNDRY_PROJECT_ENDPOINT"),
+        model_name=env("FOUNDRY_MODEL_NAME"),
+        credential=cred,
+    )
 
 
 if __name__ == "__main__":
-    workspace_id, ontology_id = setup_fabric()
-    setup_agent(workspace_id, ontology_id)
+    main()

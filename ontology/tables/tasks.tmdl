@@ -2,12 +2,12 @@ table tasks
 	lineageTag: 22fb2a43-b232-581d-b2f5-16be87e41e7a
 
 	/// Duration in calendar days from the first StartDate to the last EndDate, both days counted. For one task this is the duration of that task.
-	measure 'Duration Days' = EXTERNALMEASURE("Duration Days", INTEGER, "DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}")
+	measure 'Duration Days' = EXTERNALMEASURE("Duration Days", INTEGER, "SemanticModelSource")
 		formatString: 0
 		lineageTag: a4683fc6-394b-54f0-a26f-f66ff9c2de74
 
 	/// Planned cost in euros: the sum of the cost of the tasks. Not the same as the budget of the project.
-	measure 'Planned Cost EUR' = EXTERNALMEASURE("Planned Cost EUR", DOUBLE, "DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}")
+	measure 'Planned Cost EUR' = EXTERNALMEASURE("Planned Cost EUR", DOUBLE, "SemanticModelSource")
 		formatString: #,##0
 		lineageTag: 3af63e0c-b187-510c-a58d-de9d3df72fba
 
@@ -47,4 +47,16 @@ table tasks
 		mode: directQuery
 		source
 			entityName: tasks
-			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+			expressionSource: SemanticModelSource
+
+		annotation ONT_WorkspaceId = 66d9c2b2-d35e-4555-9e74-926164ce584c
+
+		annotation ONT_ItemId = 22fb9927-ac28-4092-80c0-0f3d7a56a156
+
+		annotation ONT_ItemKind = SemanticModel
+
+		annotation ONT_ItemName = ProjectPlanningModel
+
+		annotation ONT_WorkspaceName = ProjectPlanning
+
+		annotation ONT_PinnedAtUtc = 2026-11-11T16:15:14+00:00

@@ -3,7 +3,7 @@ title: Alignment with Microsoft guidance
 description: Where the demo follows the Microsoft documentation for Fabric IQ, Foundry and semantic models, where it goes beyond it, what we measured, and what stays open
 ---
 
-The demo builds on preview features. Microsoft documents the architecture, but several steps that the demo does by code are described only for the portal. This page lists, for each area, what Microsoft documents, what the demo does and how the two relate. Statements about our own tenant come from tests on 5 and 6 November 2026. Every documentation reference is a Microsoft Learn page unless stated otherwise.
+The demo builds on preview features. Microsoft documents the architecture, but several steps that the demo does by code are described only for the portal. This page lists, for each area, what Microsoft documents, what the demo does and how the two relate. Statements about our own tenant come from tests on 5, 6 and 11 November 2026. Every documentation reference is a Microsoft Learn page unless stated otherwise.
 
 ## Summary
 
@@ -13,7 +13,7 @@ The demo builds on preview features. Microsoft documents the architecture, but s
 | Ontology definition format | TMDL through the Fabric REST API | Same | Matches |
 | Ontology bound to a semantic model | Semantic models are a supported data source in the portal, and "Generate Ontology" creates entities, bindings and metrics | Same result, written by code | Extends the documentation |
 | Partition mode for the binding | `mode: directLake` in the TMDL reference | `mode: directQuery` as the portal writes it | Outside the documented values |
-| `ONT_*` partition annotations | Not mentioned in the reference | Not in our files, Fabric adds five itself | Matches, see below |
+| `ONT_*` partition annotations | Not mentioned in the reference | Six source annotations per partition; adding them fixed Project Instances | Tested portal behavior, see below |
 | Rule descriptions | The reference says `getDefinition` does not return them | They are stored and returned | Differs from the documentation, see below |
 | Graph and data agent | Not supported with semantic model bindings | Not used with the final setup | Matches |
 | Service principal | Not supported for the ontology MCP endpoint | The signed-in user | Matches |
@@ -51,16 +51,17 @@ The demo copies what the portal writes, found by generating an ontology from the
 
 | Part | Portal output, reproduced in `ontology/` |
 |------|-----------------------------------------|
-| `expressions.tmdl` | An expression named `DirectQuery to AS - {workspaceId}/{modelId}` that opens the model with `AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/WORKSPACE_NAME_PLACEHOLDER", "{modelName}")` and takes the cube `Model`. In our file `{{WORKSPACE_NAME}}` stands where the portal writes the placeholder text |
+| `expressions.tmdl` | The portal names the expression `DirectQuery to AS - {workspaceId}/{modelId}` and opens the model with `AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/WORKSPACE_NAME_PLACEHOLDER", "{modelName}")`, taking the cube `Model`. Our file uses the tested shorter name `SemanticModelSource` and concrete connection names `ProjectPlanning` and `ProjectPlanningModel` |
 | Table partition | `mode: directQuery`, `entityName`, `expressionSource` set to that expression, no `schemaName` |
-| Partition annotations | The portal writes `ONT_*` lines. Our files leave them out and Fabric adds its own, see below |
+| Partition annotations | Six `ONT_*` source annotations per partition, copied from the portal reference and retained in live readback, see below |
 | Measures | `measure 'Name' = EXTERNALMEASURE("Name", TYPE, "{expression name}")` on the tables `projects` and `tasks`, with a `///` description each |
 | Entities | The generated definition has none. The demo keeps its own `ontology/entities/` files with keys and property bindings |
 
 Notes on this path.
 
 * `mode: directQuery` is outside the documented schema, which lists `directLake` as the only value for `mode`.
-* The generated expression contains the literal text `WORKSPACE_NAME_PLACEHOLDER`. We tested a copy with the real workspace name instead. Both variants answered all duration and budget questions correctly (6 of 6 each), so the text does not matter for the agent path. The demo now uses the real name through the placeholder `{{WORKSPACE_NAME}}`, which `setup.py` fills, and the live ontology was updated and answered correctly.
+* The generated expression contains the literal text `WORKSPACE_NAME_PLACEHOLDER`. We tested a copy with the real workspace name instead. Both variants answered all duration and budget questions correctly (6 of 6 each), so the text did not affect those agent tests. The demo now stores the real name `ProjectPlanning` directly in TMDL. On 11 November the remaining environment placeholders were replaced with the existing environment's values for readability.
+* We then renamed the expression to `SemanticModelSource`, together with all six partition references and four `EXTERNALMEASURE` references. The annotation-bearing live definition accepted this isolated rename and retained it in readback, with the connection body and lineage tags unchanged. After a browser reload, the Project binding preview still displayed P-100 and P-200. An ontology MCP query returned the expected budget, planned cost and variance for both projects and 31 days for T-101. The portal's long name is therefore not required in this tested definition; this is not a guarantee about every preview version or binding.
 * A rule can only reference an entity that has an entity file. A rule on the generated table name `projects` failed with an unresolved reference until a full entity file with key and property bindings existed.
 * A copy of the definition, uploaded with `updateDefinition`, kept the binding. A copy created with the REST create call, from the definition alone, also worked (6 of 6 answers).
 
@@ -68,17 +69,34 @@ All of this is derived from observation. If Microsoft changes the portal output,
 
 ## The ONT annotations
 
-Where they are defined: nowhere in our files any more. With the lakehouse binding every file in `ontology/tables/` carried eight `annotation ONT_*` lines. After the switch to the semantic model we tested the ontology without them, found that they are not needed, and removed them from all six table files.
+The six partitions in [ontology/tables/](../ontology/tables) now carry these annotations, shown here for [projects.tmdl](../ontology/tables/projects.tmdl):
+
+```text
+annotation ONT_WorkspaceId = 66d9c2b2-d35e-4555-9e74-926164ce584c
+annotation ONT_ItemId = 22fb9927-ac28-4092-80c0-0f3d7a56a156
+annotation ONT_ItemKind = SemanticModel
+annotation ONT_ItemName = ProjectPlanningModel
+annotation ONT_WorkspaceName = ProjectPlanning
+annotation ONT_PinnedAtUtc = 2026-11-11T16:15:14+00:00
+```
+
+They are partition metadata, siblings of `source`, not fields inside the partition source. The IDs and names identify the model's workspace and the semantic model itself, not the lakehouse. The timestamp was copied from the portal-generated reference; it is not a connection address.
 
 What they do: they name the item that a table partition reads from (workspace, item id, item kind, item name). The TMDL reference does not mention them. A report in the Microsoft repository `skills-for-fabric` ([issue 107](https://github.com/microsoft/skills-for-fabric/issues/107), open when I read it in November 2026) describes the effect for a lakehouse binding. An ontology created by REST without them could be created, but the portal showed every entity as "Ineligible" for the graph ("Unsupported Data Source / Data Source Schema Fetch Failed") and the data preview said that the kind of Fabric item could not be identified. Adding the eight annotations made the entities eligible, and the graph could be materialized. We reproduced that on 5 November: with the annotations the graph materialized, without them all five entities were ineligible.
 
-With the semantic model binding the effect is smaller. We uploaded the ontology without any `ONT_*` annotation. Fabric then added five annotations itself: `ONT_WorkspaceId`, `ONT_ItemId`, `ONT_ItemKind` (value `SemanticModel`, where our old files wrote `Dataset`), `ONT_WorkspaceName` and `ONT_ItemName`. The five entities were listed, the duration and budget questions were answered correctly (6 of 6), and so were questions about emails, documents, relationships and dependencies. The annotations are therefore not needed in our files. The portal functions that depend on them, such as the data preview in the entity details, were not tested.
+Earlier agent tests worked without these annotations: duration and budget questions were correct (6 of 6), as were questions about emails, documents, relationships and dependencies. That did not establish portal compatibility. The main ontology's Project Instances view failed with "This data source doesn't say which Semantic model its table lives in."
+
+On 11 November we generated a separate portal reference from the same semantic model. Its Instances view worked. We then added its six-field annotation block to each of the main ontology's six table partitions. The update preserved all existing entity, table, column and rule lineage tags, the live expression and the semantic model. All 36 annotations persisted in `getDefinition`, and the main Project Instances view displayed P-100 and P-200. An ontology MCP regression returned P-200 budget 5,000,000 EUR, planned cost 5,750,000 EUR and variance 750,000 EUR, plus 31 days for task T-101.
+
+Only the complete six-field block was tested as the main-ontology fix. This does not prove that every field, including the timestamp, is individually required. The generated reference also had table `sourceLineageTag` values; the main fix did not add them.
 
 ## Updating a bound ontology through the API
 
 Issue 107 also reports that sending the parts of a portal-bound ontology back unchanged with `updateDefinition` reduced the partition annotations from eight to one and made the entities ineligible. The reporter says that the annotations survive when the same parts contain all eight and the expression is the one from the reference.
 
-The demo does not hit this. It writes the complete definition itself on every deployment, and Fabric keeps the annotations it adds. A definition that was created in the portal and then updated by code is not tested. If you change the ontology in the portal, run `./deploy.sh` or `scripts/update_ontology.py` afterwards so that the files in the repository stay the source of truth, and check the result with `getDefinition`.
+Our semantic-model reference survived a `getDefinition`/`updateDefinition` roundtrip and still displayed both projects. The service normalized `ONT_ItemKind` from the generated `Dataset` to `SemanticModel`. In a separate removal experiment on that reference, five source identity annotations reappeared in readback, but the timestamp did not. This is an observation about that already-bound reference, not a guarantee that Fabric supplies missing metadata for any ontology.
+
+Replacing the reference's identities with the main ontology's lineage tags failed with a DataSources lineage-tag error. Preserve existing identities when updating a bound ontology. For the successful main fix we changed only annotations in the six table parts and preserved every other live definition part. Before uploading the full local definition with [update_ontology.py](../scripts/update_ontology.py), compare it with the live definition and preserve any intended portal changes. Read the result back and verify both portal Instances and the semantic-model measures.
 
 ## Rule descriptions
 
@@ -172,6 +190,4 @@ I found no reference that builds an ontology on a semantic model by code or show
 
 * Simplified schema and verified answers of Prep for AI were not tested with the ontology endpoint. AI instructions have no effect.
 * Whether a user without admin rights can use the ontology and the semantic model without a publish step.
-* `ONT_*` annotations: whether portal functions such as the entity data preview need them with the semantic model binding.
 * Repeat the rating measurement with more runs and new emails that were not used to tune the rule.
-* A definition that was created in the portal and updated by code.

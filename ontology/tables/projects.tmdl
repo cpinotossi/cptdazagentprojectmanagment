@@ -2,12 +2,12 @@ table projects
 	lineageTag: 7e8dc04b-6d05-5b23-b8d2-01640ad456b2
 
 	/// Budget in euros that the customer approved for the project.
-	measure 'Budget EUR' = EXTERNALMEASURE("Budget EUR", DOUBLE, "DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}")
+	measure 'Budget EUR' = EXTERNALMEASURE("Budget EUR", DOUBLE, "SemanticModelSource")
 		formatString: #,##0
 		lineageTag: 7f26bbbe-24ad-5267-8aca-6cf21b26cd43
 
 	/// Planned cost minus budget, in euros. A positive value means the plan is over budget.
-	measure 'Budget Variance EUR' = EXTERNALMEASURE("Budget Variance EUR", DOUBLE, "DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}")
+	measure 'Budget Variance EUR' = EXTERNALMEASURE("Budget Variance EUR", DOUBLE, "SemanticModelSource")
 		formatString: #,##0
 		lineageTag: 6752e08d-2042-5333-82b6-f3c6779cee8d
 
@@ -52,4 +52,16 @@ table projects
 		mode: directQuery
 		source
 			entityName: projects
-			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+			expressionSource: SemanticModelSource
+
+		annotation ONT_WorkspaceId = 66d9c2b2-d35e-4555-9e74-926164ce584c
+
+		annotation ONT_ItemId = 22fb9927-ac28-4092-80c0-0f3d7a56a156
+
+		annotation ONT_ItemKind = SemanticModel
+
+		annotation ONT_ItemName = ProjectPlanningModel
+
+		annotation ONT_WorkspaceName = ProjectPlanning
+
+		annotation ONT_PinnedAtUtc = 2026-11-11T16:15:14+00:00

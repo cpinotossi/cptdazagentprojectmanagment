@@ -1,0 +1,425 @@
+{
+  "schema_version": 1,
+  "name": "project_planning_groundedness",
+  "language": "de",
+  "evaluation_notes": [
+    "Referenzdatensatz mit fuenf Dokumenttests und fuenf E-Mail-Tests aus den aktuellen PDFs, CSV-Daten und Ontologieregeln; keine gemessenen Agent-Antworten.",
+    "Die E-Mail-Fragen verwenden qwert als dauerhaftes Synonym fuer Project. Diese Zuordnung steht in der Ontologie, nicht im Agent-Prompt.",
+    "query ist die Benutzerfrage; ground_truth ist die belegte Sollantwort; context enthaelt Originalauszuege aus den angegebenen Quellen.",
+    "Fuer eine Groundedness-Evaluation muss response mit der tatsaechlichen Agent-Antwort befuellt werden. ground_truth ist keine gemessene Antwort.",
+    "Groundedness bewertet die Belegbarkeit der Antwort. Vollstaendigkeit und Uebereinstimmung mit ground_truth sind separat zu bewerten.",
+    "Die kuratierten Kontexte pruefen die Belegbarkeit gegen Referenzdokumente, nicht die tatsaechliche Retrieval-Qualitaet. Fuer eine End-to-End-Evaluation zusaetzlich die echten Tool-Ergebnisse erfassen.",
+    "Dieser Datensatz ist JSON, kein direkt importierbares Foundry-JSONL-Format. Die Testfaelle stehen unter test_cases.",
+    "Sinngemaess richtige Antworten und andere Datums- oder Zahlenformate sind zulaessig. Quellenangaben sollen das richtige Dokument oder die passende Klausel identifizieren."
+  ],
+  "source_documents": [
+    {
+      "path": "data/pdfs/P-100_contract.pdf",
+      "pages": 1,
+      "sha256": "bab88027d16e74179f7a8128e582a0386262b81dcb3a2e7aa957f9df85e4feed"
+    },
+    {
+      "path": "data/pdfs/P-100_offer.pdf",
+      "pages": 1,
+      "sha256": "c1f4f8d6541ba94242a65eaf12faf81b3303ad954f74a9a0c5d1951acd765c1a"
+    },
+    {
+      "path": "data/pdfs/P-100_specification.pdf",
+      "pages": 1,
+      "sha256": "e6529f48bcc512ae2b9ec501357ac35a9d39f7d17b6c331f98b799c0bfb3e1b9"
+    },
+    {
+      "path": "data/pdfs/P-200_contract.pdf",
+      "pages": 1,
+      "sha256": "2c51a2622c10f106fe5877b6b4a2ab50bcf4b9cd0edf29ab9f4bf2c50cafbad5"
+    },
+    {
+      "path": "data/emails.csv",
+      "sha256": "07f25839038c4a1e9d84a7f2193cc5242e7239438a6aace722b74c7b8545322b"
+    },
+    {
+      "path": "data/projects.csv",
+      "sha256": "29f8ac124969fce98949cff423e2c7244abf08985a60b904e10ff4e29481d7f6"
+    },
+    {
+      "path": "data/project_managers.csv",
+      "sha256": "b67edbc47d77f6149f9ab8fb90779b75d19d4c1d874f49f3e36ceaee8f6dd68f"
+    },
+    {
+      "path": "ontology/entities/Project.tmdl",
+      "sha256": "0145610f6d22ee65f6ba60a834dab0ad8a0c3302e3f08b1d575fb8d974e72afd"
+    },
+    {
+      "path": "ontology/rules/EmailCriticality.tmdl",
+      "sha256": "b3b78142e9d86e76483fc0aa01c66e381f7d678f669d8d0a45125254927b20d2"
+    },
+    {
+      "path": "ontology/rules/ChangeRequestPolicy.tmdl",
+      "sha256": "e6e84e1beb68f61f8564aae1648fef713f55f438993f90bcd7f0d23f21972d08"
+    },
+    {
+      "path": "ontology/rules/EscalationPolicy.tmdl",
+      "sha256": "f1eed040f24aa67e2bed89b8f95fd88164d921f0248a59eda779f404553c7c5d"
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "G-001",
+      "category": "factual",
+      "query": "Wie hoch ist der angebotene Festpreis fuer das Projekt P-100, Office Building Hamburg, und handelt es sich um einen Netto- oder Bruttopreis?",
+      "context": "[data/pdfs/P-100_offer.pdf, page 1]\nOffer - Office Building Hamburg (P-100)\nProvider: Demo Construction AG, client: Nordbau Real Estate Ltd\nFixed price: EUR 2,400,000 net. Construction period 2027-01-01 to 2027-12-15.",
+      "ground_truth": "Der angebotene Festpreis fuer P-100 betraegt 2.400.000 EUR netto. Quelle: Angebot P-100, Klausel Fixed price.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "P-100",
+        "Festpreis 2400000 EUR",
+        "Nettopreis"
+      ],
+      "sources": [
+        {
+          "path": "data/pdfs/P-100_offer.pdf",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "id": "G-002",
+      "category": "cross_document",
+      "query": "Welche Termine gelten bei P-100 fuer die Fertigstellung und die spaeteste Abnahme? Sind das dieselben Termine?",
+      "context": "[data/pdfs/P-100_specification.pdf, page 1]\nSpecification - Office Building Hamburg (P-100)\nCompletion: 2027-12-15. The date is binding because the main tenant moves in on 2028-01-01.\n\n[data/pdfs/P-100_contract.pdf, page 1]\nConstruction Contract - Office Building Hamburg (P-100)\nAcceptance: by 2028-01-15 at the latest.",
+      "ground_truth": "Nein. Laut Leistungsbeschreibung ist die Fertigstellung am 15.12.2027 verbindlich, weil der Hauptmieter am 01.01.2028 einzieht. Laut Bauvertrag muss die Abnahme spaetestens am 15.01.2028 erfolgen. Fertigstellung und Abnahme sind unterschiedliche Termine; der Abnahmetermin ersetzt nicht den Fertigstellungstermin.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "Fertigstellung 2027-12-15 laut Leistungsbeschreibung",
+        "Abnahme spaetestens 2028-01-15 laut Bauvertrag",
+        "Fertigstellung und Abnahme nicht gleichsetzen"
+      ],
+      "sources": [
+        {
+          "path": "data/pdfs/P-100_specification.pdf",
+          "page": 1
+        },
+        {
+          "path": "data/pdfs/P-100_contract.pdf",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "id": "G-003",
+      "category": "factual",
+      "query": "Welche Vertragsstrafe nennt der Bauvertrag fuer P-100: Wie hoch ist der Satz, auf welchen Wert bezieht er sich, zaehlen Arbeits- oder Kalendertage und gibt es eine Obergrenze?",
+      "context": "[data/pdfs/P-100_contract.pdf, page 1]\nConstruction Contract - Office Building Hamburg (P-100)\nContractual penalty: 0.2 % of the contract value per working day of delay, capped at 5 %.",
+      "ground_truth": "Der Bauvertrag nennt 0,2 Prozent des Vertragswerts pro Arbeitstag der Verzoegerung, begrenzt auf insgesamt 5 Prozent des Vertragswerts. Es sind Arbeitstage, nicht Kalendertage. Quelle: Bauvertrag P-100, Klausel Contractual penalty.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "0.2 Prozent",
+        "Bezugswert ist der Vertragswert",
+        "Pro Arbeitstag der Verzoegerung",
+        "Obergrenze insgesamt 5 Prozent"
+      ],
+      "sources": [
+        {
+          "path": "data/pdfs/P-100_contract.pdf",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "id": "G-004",
+      "category": "derived",
+      "query": "Angenommen, die Gesamtkosten fuer P-200 betragen 5.750.000 EUR: Um welchen Betrag und Prozentsatz wird das Vertragsbudget ueberschritten, und welche Freigabe verlangt die Vertragsklausel?",
+      "context": "[data/pdfs/P-200_contract.pdf, page 1]\nFramework Contract - Residential Complex Munich (P-200)\nParties: Demo Construction AG and Isar Housing Corp\nBudget: EUR 5,000,000. An overrun of more than 10 % requires written approval by the client.",
+      "ground_truth": "Bei den angenommenen Gesamtkosten von 5.750.000 EUR liegt die Ueberschreitung des Vertragsbudgets von 5.000.000 EUR bei 750.000 EUR beziehungsweise 15 Prozent: (5750000 - 5000000) / 5000000 * 100. Da dies mehr als 10 Prozent sind, ist laut Rahmenvertrag eine schriftliche Zustimmung des Auftraggebers Isar Housing Corp erforderlich. Die Klausel belegt nicht, dass diese Zustimmung bereits erteilt wurde.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "Vertragsbudget 5000000 EUR",
+        "Angenommene Gesamtkosten 5750000 EUR",
+        "Ueberschreitung 750000 EUR",
+        "Ueberschreitung 15 Prozent",
+        "Mehr als 10 Prozent erfordert schriftliche Zustimmung des Auftraggebers",
+        "Keine bereits erteilte Zustimmung behaupten"
+      ],
+      "sources": [
+        {
+          "path": "data/pdfs/P-200_contract.pdf",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "id": "G-005",
+      "category": "abstention",
+      "query": "Wie hoch ist laut den vorliegenden Dokumenten die Vertragsstrafe pro Arbeitstag bei P-200, Residential Complex Munich?",
+      "context": "[data/pdfs/P-200_contract.pdf, page 1]\nFramework Contract - Residential Complex Munich (P-200)\nParties: Demo Construction AG and Isar Housing Corp\nBudget: EUR 5,000,000. An overrun of more than 10 % requires written approval by the client.\nTerm: 2027-03-01 to 2028-06-30.\n\n[data/pdfs/P-100_contract.pdf, page 1]\nConstruction Contract - Office Building Hamburg (P-100)\nContractual penalty: 0.2 % of the contract value per working day of delay, capped at 5 %.",
+      "ground_truth": "Aus den vorliegenden Dokumenten laesst sich fuer P-200 keine Vertragsstrafe pro Arbeitstag bestimmen. Der Rahmenvertrag P-200 nennt keine entsprechende Klausel. Die 0,2 Prozent pro Arbeitstag mit einer Obergrenze von 5 Prozent gehoeren zu P-100 und duerfen nicht auf P-200 uebertragen werden. Das Fehlen einer Klausel im vorliegenden Dokument beweist nicht, dass grundsaetzlich keine Vertragsstrafe vereinbart wurde.",
+      "expected_behavior": "abstain",
+      "required_facts": [
+        "Vertragsstrafe fuer P-200 ist in den vorliegenden Dokumenten nicht belegt",
+        "Keine Uebertragung der P-100-Klausel auf P-200",
+        "Nicht pauschal behaupten, es gebe keine Vertragsstrafe"
+      ],
+      "sources": [
+        {
+          "path": "data/pdfs/P-200_contract.pdf",
+          "page": 1
+        },
+        {
+          "path": "data/pdfs/P-100_contract.pdf",
+          "page": 1
+        }
+      ]
+    },
+    {
+      "id": "G-006",
+      "category": "email",
+      "email_id": "E-1",
+      "query": "Bewerte diese E-Mail und nenne den zugehoerigen qwert mit ID und Name, die verantwortliche Projektleitung mit E-Mail-Adresse und eine eventuell erforderliche Eskalation. E-Mail E-1, empfangen am 2026-11-02, von client@nordbau.example, Betreff: Status meeting. Text: Thanks for the update. Thursday works for us.",
+      "context": "[data/emails.csv, MailId=E-1]\nMailId,ProjectId,Sender,Subject,Body,ReceivedAt\nE-1,P-100,client@nordbau.example,Status meeting,Thanks for the update. Thursday works for us.,2026-11-02\n\n[data/projects.csv, ProjectId=P-100]\nProjectId,Name,Customer,ManagerId,StartDate,EndDate,BudgetEur\nP-100,Office Building Hamburg,Nordbau Real Estate Ltd,M-1,2027-01-01,2027-12-15,2400000\n\n[data/project_managers.csv, ManagerId=M-1]\nManagerId,Name,Email\nM-1,Anna Becker,anna.becker@example.com\n\n[ontology/entities/Project.tmdl]\nentity Project\n\tsynonym qwert\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it not critical if it is routine information without effect on schedule, cost, scope or contract, for example a status meeting, a request for an existing document, or an absence that lies completely outside the term of the project.\n\n[ontology/rules/EscalationPolicy.tmdl]\n/// Applies to every email that EmailCriticality rates critical. Emails rated watch or not critical need no escalation.",
+      "ground_truth": "E-1 gehoert zu qwert P-100, Office Building Hamburg. Projektleiterin ist Anna Becker, anna.becker@example.com. Einstufung: not critical beziehungsweise nicht kritisch. Die E-Mail bestaetigt lediglich einen Besprechungstermin; eine Aenderung oder Bedrohung von Termin, Budget, Umfang oder Vertrag ist nicht belegt. Nach EmailCriticality ist dies Routineinformation. Nach EscalationPolicy ist keine Eskalation erforderlich.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "P-100, Office Building Hamburg",
+        "Anna Becker, anna.becker@example.com",
+        "not critical",
+        "Routineinformation ohne belegte Auswirkung",
+        "Keine Eskalation"
+      ],
+      "sources": [
+        {
+          "path": "data/emails.csv",
+          "row_id": "E-1"
+        },
+        {
+          "path": "data/projects.csv",
+          "row_id": "P-100"
+        },
+        {
+          "path": "data/project_managers.csv",
+          "row_id": "M-1"
+        },
+        {
+          "path": "ontology/entities/Project.tmdl",
+          "entity": "Project"
+        },
+        {
+          "path": "ontology/rules/EmailCriticality.tmdl",
+          "rule": "EmailCriticality"
+        },
+        {
+          "path": "ontology/rules/EscalationPolicy.tmdl",
+          "rule": "EscalationPolicy"
+        }
+      ]
+    },
+    {
+      "id": "G-007",
+      "category": "email",
+      "email_id": "E-2",
+      "query": "Bewerte diese E-Mail anhand der Dokumente des zugehoerigen qwert. Nenne ID und Name des qwert, die verantwortliche Projektleitung mit E-Mail-Adresse, die Begruendung und eine erforderliche Eskalationsfrist. E-Mail E-2, empfangen am 2026-11-03, von client@nordbau.example, Betreff: Building permit delayed. Text: The building authority told us that the permit will only be issued at the end of March. We still expect completion on 2027-12-15 and refer to the contractual penalty.",
+      "context": "[data/emails.csv, MailId=E-2]\nMailId,ProjectId,Sender,Subject,Body,ReceivedAt\nE-2,P-100,client@nordbau.example,Building permit delayed,The building authority told us that the permit will only be issued at the end of March. We still expect completion on 2027-12-15 and refer to the contractual penalty.,2026-11-03\n\n[data/projects.csv, ProjectId=P-100]\nProjectId,Name,Customer,ManagerId,StartDate,EndDate,BudgetEur\nP-100,Office Building Hamburg,Nordbau Real Estate Ltd,M-1,2027-01-01,2027-12-15,2400000\n\n[data/project_managers.csv, ManagerId=M-1]\nManagerId,Name,Email\nM-1,Anna Becker,anna.becker@example.com\n\n[data/pdfs/P-100_offer.pdf, page 1]\nAssumption: The building permit is issued by 2027-01-31.\n\n[data/pdfs/P-100_specification.pdf, page 1]\nCompletion: 2027-12-15. The date is binding because the main tenant moves in on 2028-01-01.\n\n[data/pdfs/P-100_contract.pdf, page 1]\nContractual penalty: 0.2 % of the contract value per working day of delay, capped at 5 %.\n\n[ontology/entities/Project.tmdl]\nentity Project\n\tsynonym qwert\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it.\nPlace a date without a year in the next occurrence after the date of the email.\n\n[ontology/rules/EscalationPolicy.tmdl]\nstatement: Every critical email must be escalated to the project manager of its project within 1 working day.",
+      "ground_truth": "E-2 gehoert zu qwert P-100, Office Building Hamburg, mit Anna Becker, anna.becker@example.com, als Projektleiterin. Einstufung: critical beziehungsweise kritisch. Ende Maerz ist nach der Datumsregel als Maerz 2027 zu verstehen und widerspricht der Angebotsannahme einer Baugenehmigung bis 31.01.2027. Gleichzeitig bleibt die verbindliche Fertigstellung am 15.12.2027 gefordert; der Vertrag nennt eine Vertragsstrafe von 0,2 Prozent pro Arbeitstag, gedeckelt auf 5 Prozent. Laut EmailCriticality reicht bereits der Widerspruch zur Annahme aus, auch bei vorhandenem Puffer. Nach EscalationPolicy ist innerhalb eines Arbeitstags an Anna Becker zu eskalieren. Eine bereits eingetretene Fertigstellungsverzoegerung oder bereits faellige Strafe ist damit nicht bewiesen.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "P-100, Office Building Hamburg",
+        "Anna Becker, anna.becker@example.com",
+        "critical",
+        "Baugenehmigung Ende Maerz 2027 statt angenommener 2027-01-31",
+        "Fertigstellung bleibt 2027-12-15",
+        "Innerhalb 1 Arbeitstags an die Projektleiterin eskalieren",
+        "Keine bereits faellige Vertragsstrafe behaupten"
+      ],
+      "sources": [
+        {
+          "path": "data/emails.csv",
+          "row_id": "E-2"
+        },
+        {
+          "path": "data/projects.csv",
+          "row_id": "P-100"
+        },
+        {
+          "path": "data/project_managers.csv",
+          "row_id": "M-1"
+        },
+        {
+          "path": "data/pdfs/P-100_offer.pdf",
+          "page": 1
+        },
+        {
+          "path": "data/pdfs/P-100_specification.pdf",
+          "page": 1
+        },
+        {
+          "path": "data/pdfs/P-100_contract.pdf",
+          "page": 1
+        },
+        {
+          "path": "ontology/entities/Project.tmdl",
+          "entity": "Project"
+        },
+        {
+          "path": "ontology/rules/EmailCriticality.tmdl",
+          "rule": "EmailCriticality"
+        },
+        {
+          "path": "ontology/rules/EscalationPolicy.tmdl",
+          "rule": "EscalationPolicy"
+        }
+      ]
+    },
+    {
+      "id": "G-008",
+      "category": "email",
+      "email_id": "E-3",
+      "query": "Bewerte diese E-Mail fuer den zugehoerigen qwert und pruefe die behauptete Festpreisabdeckung. Nenne ID und Name des qwert, die verantwortliche Projektleitung mit E-Mail-Adresse, Einstufung und Eskalation. E-Mail E-3, empfangen am 2026-11-04, von client@nordbau.example, Betreff: Additional request. Text: Please add a green roof with photovoltaics. This should be covered by the fixed price.",
+      "context": "[data/emails.csv, MailId=E-3]\nMailId,ProjectId,Sender,Subject,Body,ReceivedAt\nE-3,P-100,client@nordbau.example,Additional request,Please add a green roof with photovoltaics. This should be covered by the fixed price.,2026-11-04\n\n[data/projects.csv, ProjectId=P-100]\nProjectId,Name,Customer,ManagerId,StartDate,EndDate,BudgetEur\nP-100,Office Building Hamburg,Nordbau Real Estate Ltd,M-1,2027-01-01,2027-12-15,2400000\n\n[data/project_managers.csv, ManagerId=M-1]\nManagerId,Name,Email\nM-1,Anna Becker,anna.becker@example.com\n\n[data/pdfs/P-100_specification.pdf, page 1]\nScope: 5-storey office building with 3,000 m2 floor space, reinforced concrete frame and glass facade.\n\n[data/pdfs/P-100_offer.pdf, page 1]\nFixed price: EUR 2,400,000 net. Construction period 2027-01-01 to 2027-12-15.\nChanges outside the specification are charged by effort at EUR 85 per hour.\n\n[ontology/entities/Project.tmdl]\nentity Project\n\tsynonym qwert\n\n[ontology/rules/ChangeRequestPolicy.tmdl]\nstatement: A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price.\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it.\n\n[ontology/rules/EscalationPolicy.tmdl]\nstatement: Every critical email must be escalated to the project manager of its project within 1 working day.",
+      "ground_truth": "E-3 gehoert zu qwert P-100, Office Building Hamburg. Verantwortlich ist Anna Becker, anna.becker@example.com. Einstufung: critical beziehungsweise kritisch, weil der konkrete Zusatzwunsch den Leistungsumfang und die behauptete Verguetung aendert. Gruendach und Photovoltaik sind im vorliegenden Leistungsumfang nicht genannt; eine Abdeckung durch den Festpreis von 2.400.000 EUR netto ist nicht belegt. Nach ChangeRequestPolicy ist die Zusatzleistung als Change Request separat zu vergueten, nicht im Festpreis aufzufangen. Das Angebot nennt 85 EUR pro Stunde nach Aufwand. Mangels Stundenansatz laesst sich kein Gesamtpreis bestimmen. Nach EscalationPolicy innerhalb eines Arbeitstags an Anna Becker eskalieren.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "P-100, Office Building Hamburg",
+        "Anna Becker, anna.becker@example.com",
+        "critical",
+        "Change Request statt automatisch bestaetigter Festpreisabdeckung",
+        "Separate Verguetung nach Aufwand zu 85 EUR pro Stunde",
+        "Keinen Gesamtpreis ohne Aufwand erfinden",
+        "Innerhalb 1 Arbeitstags eskalieren"
+      ],
+      "sources": [
+        {
+          "path": "data/emails.csv",
+          "row_id": "E-3"
+        },
+        {
+          "path": "data/projects.csv",
+          "row_id": "P-100"
+        },
+        {
+          "path": "data/project_managers.csv",
+          "row_id": "M-1"
+        },
+        {
+          "path": "data/pdfs/P-100_specification.pdf",
+          "page": 1
+        },
+        {
+          "path": "data/pdfs/P-100_offer.pdf",
+          "page": 1
+        },
+        {
+          "path": "ontology/entities/Project.tmdl",
+          "entity": "Project"
+        },
+        {
+          "path": "ontology/rules/ChangeRequestPolicy.tmdl",
+          "rule": "ChangeRequestPolicy"
+        },
+        {
+          "path": "ontology/rules/EmailCriticality.tmdl",
+          "rule": "EmailCriticality"
+        },
+        {
+          "path": "ontology/rules/EscalationPolicy.tmdl",
+          "rule": "EscalationPolicy"
+        }
+      ]
+    },
+    {
+      "id": "G-009",
+      "category": "email",
+      "email_id": "E-4",
+      "query": "Bewerte diese E-Mail fuer den zugehoerigen qwert anhand seiner Laufzeit. Leite die fehlenden Jahreszahlen aus dem Empfangsdatum ab. Nenne ID und Name des qwert, die verantwortliche Projektleitung mit E-Mail-Adresse und ob eskaliert werden muss. E-Mail E-4, empfangen am 2026-11-02, von team@isar.example, Betreff: Holiday schedule. Text: Our office is closed from 20 December to 3 January.",
+      "context": "[data/emails.csv, MailId=E-4]\nMailId,ProjectId,Sender,Subject,Body,ReceivedAt\nE-4,P-200,team@isar.example,Holiday schedule,Our office is closed from 20 December to 3 January.,2026-11-02\n\n[data/projects.csv, ProjectId=P-200]\nProjectId,Name,Customer,ManagerId,StartDate,EndDate,BudgetEur\nP-200,Residential Complex Munich,Isar Housing Corp,M-2,2027-03-01,2028-06-30,5000000\n\n[data/project_managers.csv, ManagerId=M-2]\nManagerId,Name,Email\nM-2,Ben Fischer,ben.fischer@example.com\n\n[data/pdfs/P-200_contract.pdf, page 1]\nTerm: 2027-03-01 to 2028-06-30.\n\n[ontology/entities/Project.tmdl]\nentity Project\n\tsynonym qwert\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it not critical if it is routine information without effect on schedule, cost, scope or contract, for example a status meeting, a request for an existing document, or an absence that lies completely outside the term of the project.\nPlace a date without a year in the next occurrence after the date of the email.\n\n[ontology/rules/EscalationPolicy.tmdl]\n/// Applies to every email that EmailCriticality rates critical. Emails rated watch or not critical need no escalation.",
+      "ground_truth": "E-4 gehoert zu qwert P-200, Residential Complex Munich. Verantwortlich ist Ben Fischer, ben.fischer@example.com. Nach der Datumsregel ergibt sich aus dem Empfang am 02.11.2026 die zusammenhaengende Schliesszeit vom 20.12.2026 bis 03.01.2027. Diese liegt vollstaendig vor der Projektlaufzeit vom 01.03.2027 bis 30.06.2028. Daher nach EmailCriticality not critical beziehungsweise nicht kritisch, nicht allein wegen der Abwesenheit watch oder critical. Nach EscalationPolicy ist keine Eskalation erforderlich.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "P-200, Residential Complex Munich",
+        "Ben Fischer, ben.fischer@example.com",
+        "Schliesszeit 2026-12-20 bis 2027-01-03",
+        "Projektlaufzeit 2027-03-01 bis 2028-06-30",
+        "not critical",
+        "Abwesenheit vollstaendig ausserhalb der Projektlaufzeit",
+        "Keine Eskalation"
+      ],
+      "sources": [
+        {
+          "path": "data/emails.csv",
+          "row_id": "E-4"
+        },
+        {
+          "path": "data/projects.csv",
+          "row_id": "P-200"
+        },
+        {
+          "path": "data/project_managers.csv",
+          "row_id": "M-2"
+        },
+        {
+          "path": "data/pdfs/P-200_contract.pdf",
+          "page": 1
+        },
+        {
+          "path": "ontology/entities/Project.tmdl",
+          "entity": "Project"
+        },
+        {
+          "path": "ontology/rules/EmailCriticality.tmdl",
+          "rule": "EmailCriticality"
+        },
+        {
+          "path": "ontology/rules/EscalationPolicy.tmdl",
+          "rule": "EscalationPolicy"
+        }
+      ]
+    },
+    {
+      "id": "G-010",
+      "category": "email",
+      "email_id": "E-5",
+      "query": "Bewerte diese E-Mail fuer den zugehoerigen qwert. Berechne die Budgetabweichung in EUR und Prozent und nenne ID und Name des qwert, die verantwortliche Projektleitung mit E-Mail-Adresse, erforderliche Freigabe und Eskalation. E-Mail E-5, empfangen am 2026-11-05, von controlling@isar.example, Betreff: Cost warning. Text: Our current forecast shows total costs of EUR 5.75 million. Please explain the difference.",
+      "context": "[data/emails.csv, MailId=E-5]\nMailId,ProjectId,Sender,Subject,Body,ReceivedAt\nE-5,P-200,controlling@isar.example,Cost warning,Our current forecast shows total costs of EUR 5.75 million. Please explain the difference.,2026-11-05\n\n[data/projects.csv, ProjectId=P-200]\nProjectId,Name,Customer,ManagerId,StartDate,EndDate,BudgetEur\nP-200,Residential Complex Munich,Isar Housing Corp,M-2,2027-03-01,2028-06-30,5000000\n\n[data/project_managers.csv, ManagerId=M-2]\nManagerId,Name,Email\nM-2,Ben Fischer,ben.fischer@example.com\n\n[data/pdfs/P-200_contract.pdf, page 1]\nParties: Demo Construction AG and Isar Housing Corp\nBudget: EUR 5,000,000. An overrun of more than 10 % requires written approval by the client.\n\n[ontology/entities/Project.tmdl]\nentity Project\n\tsynonym qwert\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it.\n\n[ontology/rules/EscalationPolicy.tmdl]\nstatement: Every critical email must be escalated to the project manager of its project within 1 working day.",
+      "ground_truth": "E-5 gehoert zu qwert P-200, Residential Complex Munich. Verantwortlich ist Ben Fischer, ben.fischer@example.com. Einstufung: critical beziehungsweise kritisch wegen der Budgetbedrohung. Die Prognose von 5.750.000 EUR ueberschreitet das Budget von 5.000.000 EUR um 750.000 EUR beziehungsweise 15 Prozent. Mehr als 10 Prozent erfordern laut Rahmenvertrag eine schriftliche Zustimmung des Auftraggebers Isar Housing Corp. Eine bereits erteilte Zustimmung ist nicht belegt. Nach EscalationPolicy innerhalb eines Arbeitstags an Ben Fischer eskalieren. Die Prognose ist nicht als bereits angefallener Ist-Aufwand darzustellen.",
+      "expected_behavior": "answer",
+      "required_facts": [
+        "P-200, Residential Complex Munich",
+        "Ben Fischer, ben.fischer@example.com",
+        "critical",
+        "Prognose 5750000 EUR bei Budget 5000000 EUR",
+        "Ueberschreitung 750000 EUR beziehungsweise 15 Prozent",
+        "Schriftliche Zustimmung von Isar Housing Corp erforderlich, nicht bereits belegt",
+        "Innerhalb 1 Arbeitstags eskalieren",
+        "Prognose nicht als bereits angefallene Kosten darstellen"
+      ],
+      "sources": [
+        {
+          "path": "data/emails.csv",
+          "row_id": "E-5"
+        },
+        {
+          "path": "data/projects.csv",
+          "row_id": "P-200"
+        },
+        {
+          "path": "data/project_managers.csv",
+          "row_id": "M-2"
+        },
+        {
+          "path": "data/pdfs/P-200_contract.pdf",
+          "page": 1
+        },
+        {
+          "path": "ontology/entities/Project.tmdl",
+          "entity": "Project"
+        },
+        {
+          "path": "ontology/rules/EmailCriticality.tmdl",
+          "rule": "EmailCriticality"
+        },
+        {
+          "path": "ontology/rules/EscalationPolicy.tmdl",
+          "rule": "EscalationPolicy"
+        }
+      ]
+    }
+  ]
+}

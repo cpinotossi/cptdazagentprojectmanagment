@@ -36,4 +36,16 @@ table emails
 		mode: directQuery
 		source
 			entityName: emails
-			expressionSource: 'DirectQuery to AS - {{WORKSPACE_ID}}/{{SEMANTIC_MODEL_ID}}'
+			expressionSource: SemanticModelSource
+
+		annotation ONT_WorkspaceId = 66d9c2b2-d35e-4555-9e74-926164ce584c
+
+		annotation ONT_ItemId = 22fb9927-ac28-4092-80c0-0f3d7a56a156
+
+		annotation ONT_ItemKind = SemanticModel
+
+		annotation ONT_ItemName = ProjectPlanningModel
+
+		annotation ONT_WorkspaceName = ProjectPlanning
+
+		annotation ONT_PinnedAtUtc = 2026-11-11T16:15:14+00:00

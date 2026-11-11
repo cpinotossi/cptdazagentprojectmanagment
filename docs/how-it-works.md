@@ -172,7 +172,7 @@ The demo therefore binds the ontology to a semantic model, `ProjectPlanningModel
 | `Budget EUR` | `projects` | Approved budget |
 | `Budget Variance EUR` | `projects` | Planned cost minus budget, positive means over budget |
 
-In `ontology/tables/` every table is declared with `mode: directQuery` and the semantic model as source. Fabric adds the `ONT_*` source annotations itself. The two measure tables carry the measures as `EXTERNALMEASURE(...)`, a pointer to the model. This is the form that the portal writes when you choose "Generate Ontology" on a semantic model. The entities, relationships and rules are the same files as before.
+In [ontology/tables/](../ontology/tables) every table is declared with `mode: directQuery` and the semantic model as source. Each partition also carries six `ONT_*` annotations identifying the workspace and semantic model. Agent queries worked without them, but the portal's Project Instances view could not identify the model. Adding the annotations fixed that view without changing the model or entity identities. The two measure tables carry the measures as `EXTERNALMEASURE(...)`, a pointer to the model. This follows the source-binding form observed when you choose "Generate Ontology" on a semantic model. The entities, relationships and rules are the same files as before.
 
 How this came out, compared with the earlier setup (ontology on the lakehouse plus the semantic model as a second Fabric IQ tool):
 
@@ -217,7 +217,7 @@ rule EscalationPolicy
 | `relationships.tmdl` | The table level joins behind the relationships (foreign keys) |
 | `rules/*.tmdl` | One file per business rule |
 | `tables/*.tmdl` | The tables of the semantic model that the ontology reads, with their columns, and for `projects` and `tasks` the DAX measures as pointers |
-| `expressions.tmdl` | The connection to the semantic model, filled in at deployment |
+| `expressions.tmdl` | The connection to `ProjectPlanningModel` in workspace `ProjectPlanning`, with concrete values stored in the file |
 | `model.tmdl`, `database.tmdl`, `namespaces/default.tmdl` | Index files that Fabric requires |
 | `.platform` | Item type and display name |
 
@@ -311,7 +311,7 @@ It also costs something. It adds one to two seconds and tokens, and it is a sour
 | Stage | Tool | Creates |
 |-------|------|---------|
 | 1 | [infra/main.bicep](../infra/main.bicep) | Foundry account with project management, the `gpt-4.1` deployment, the Foundry project, the Fabric capacity F2, Log Analytics and Application Insights with the Foundry connection that turns on tracing, and the Foundry role assignments for the deployer. Key based auth is disabled, access uses Entra ID only. |
-| 2 | [scripts/setup.py](../scripts/setup.py) | Fabric workspace, lakehouse, tables, ontology, the Foundry connection and the agent |
+| 2 | [scripts/setup.py](../scripts/setup.py), calling [scripts/setup_agent.py](../scripts/setup_agent.py) | Fabric workspace, lakehouse, tables, ontology, the Foundry connection and the agent |
 
 Stage 2 runs these steps in order:
 
@@ -321,7 +321,7 @@ Stage 2 runs these steps in order:
 4. Load each CSV into a lakehouse table through the Load Table API.
 5. Wait until the lakehouse SQL endpoint is ready.
 6. Create the semantic model from `semantic_model/` (or update its definition), with the SQL endpoint as source.
-7. Read the `ontology/` folder, replace the placeholders for the workspace and the semantic model (`{{WORKSPACE_ID}}`, `{{SEMANTIC_MODEL_ID}}`, `{{SEMANTIC_MODEL_NAME}}` and a few more), and create the ontology (or update its definition if it exists).
+7. Read the `ontology/` folder and create the ontology (or update its definition if it exists). The TMDL files now contain static values for this demo environment, including the semantic model connection and the lakehouse SQL endpoint. Update those values before deploying to another environment.
 8. Create the Foundry connection to the ontology and the prompt agent, then ask a test question.
 
 Every step is repeatable. Running `./deploy.sh` again updates the ontology in place and publishes a new agent version.
@@ -350,11 +350,12 @@ The last section of the notebook [use_case.ipynb](../notebooks/use_case.ipynb) f
 | What did the model ask Fabric? | `mcp_call` item and the span `execute_tool` | Response JSON, trace |
 | How long did each stage take, how many tokens? | Server-side trace in Application Insights | Table `AppDependencies`, filter on `gen_ai.response.id` |
 | Which configuration does Fabric hold? | MCP tools `list_ontology_rules` and `list_ontology_entities` | Direct call with your token |
+| Which DAX queries did the endpoint run against the semantic model? | Workspace monitoring, table `SemanticModelLogs` of the monitoring Eventhouse | KQL. Switch on monitoring in the workspace settings first. The `OperationId` of a DAX query is the `client_correlation_id` of its SQL statements |
 | Which statements reached the lakehouse, and as whom? | `queryinsights.exec_requests_history` of the lakehouse SQL endpoint | T-SQL, for example with `sqlcmd`. The ontology is bound to the semantic model and asks it with DAX. The statements in this log are what the semantic model reads from the lakehouse, and many carry a label with the `DatasetId` of the model. |
 
 A typical call has three spans. `invoke_agent` is the whole call, `execute_tool` is the Fabric call and `chat` is the model writing the final answer. In the measured runs, 95 percent or more of the time sat in the Fabric call, and the SQL statements themselves took well under a second each. The remaining time is spent inside Fabric before and between the statements.
 
-Fabric has no separate log for ontology calls on this path that I could find. The SQL statements in Query Insights are the closest view. They show the user as `login_name`, which confirms that the Entra token passes through, and they show joins that follow the bindings and relationships of the ontology.
+Fabric has no separate log for ontology calls as such. Workspace monitoring logs the DAX queries that the endpoint writes against the semantic model, and Query Insights logs the SQL that reaches the lakehouse. The notebook [request_walkthrough.ipynb](../notebooks/request_walkthrough.ipynb) puts all layers of one request side by side. The SQL statements in Query Insights are the closest view. They show the user as `login_name`, which confirms that the Entra token passes through, and they show joins that follow the bindings and relationships of the ontology.
 
 Traces reach Application Insights a few minutes after the call, so the notebook waits for them.
 

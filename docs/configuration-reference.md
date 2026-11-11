@@ -68,7 +68,7 @@ A graph item `ProjectPlanning_graph_8750de7fd46f4dd484f4a7e31f68ff24` (`f5ce87ca
 | [ontology/entityRelationships.tmdl](../ontology/entityRelationships.tmdl) | Relationship types | Ontology item, relationship types |
 | [ontology/tables/](../ontology/tables) and [ontology/expressions.tmdl](../ontology/expressions.tmdl) | Data bindings of the entity types to the semantic model | Ontology item, entity type, data binding |
 | [ontology/rules/](../ontology/rules) | Business rules | Ontology item, Rules (links above) |
-| [scripts/agent_instructions.txt](../scripts/agent_instructions.txt) and `setup.py` | Agent `project-planning-agent` and the connection `fabric-iq-ontology` | Foundry portal, project `project-planning`, agent and connected resources |
+| [scripts/agent_instructions.txt](../scripts/agent_instructions.txt) and [scripts/setup_agent.py](../scripts/setup_agent.py) | Agent `project-planning-agent` and the connection `fabric-iq-ontology` | Foundry portal, project `project-planning`, agent and connected resources |
 
 ## The whole chain at a glance
 
@@ -291,7 +291,7 @@ Why it exists: the ontology endpoint calculated inexactly when the ontology was 
 | [definition.pbism](../semantic_model/definition.pbism) | `version: 4.2` | Format version of the definition | [Semantic model definition](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/semantic-model-definition) |
 | [database.tmdl](../semantic_model/definition/database.tmdl) | `compatibilityLevel: 1604` | Feature level of the engine | [TMDL overview](https://learn.microsoft.com/analysis-services/tmdl/tmdl-overview) |
 | [model.tmdl](../semantic_model/definition/model.tmdl) | `culture: en-US`, `defaultPowerBIDataSourceVersion: powerBI_V3`, `discourageImplicitMeasures` | Language, data source version, and no automatic measures. People and AI must use the defined measures | [Measures](https://learn.microsoft.com/power-bi/transform-model/desktop-measures) |
-| [expressions.tmdl](../semantic_model/definition/expressions.tmdl) | expression `DatabaseQuery` = `Sql.Database("{{SQL_SERVER}}", "{{SQL_DATABASE_ID}}")` | The lakehouse SQL analytics endpoint. `setup.py` fills the two placeholders | [Direct Lake overview](https://learn.microsoft.com/fabric/fundamentals/direct-lake-overview) |
+| [expressions.tmdl](../semantic_model/definition/expressions.tmdl) | expression `DatabaseQuery` = `Sql.Database(...)` with the concrete SQL server and database ID | The SQL analytics endpoint of lakehouse `projectdata`, stored directly in TMDL for readability | [Direct Lake overview](https://learn.microsoft.com/fabric/fundamentals/direct-lake-overview) |
 
 ### Tables
 
@@ -351,7 +351,7 @@ Weaknesses:
 
 Docs: [Ontology overview](https://learn.microsoft.com/fabric/iq/ontology/overview), [Ontology definition (TMDL)](https://learn.microsoft.com/rest/api/fabric/articles/item-management/definitions/ontology-definition), [Data binding](https://learn.microsoft.com/fabric/iq/ontology/how-to-bind-data), [Generate from semantic models](https://learn.microsoft.com/fabric/iq/ontology/how-to-generate-from-semantic-models), [Metrics](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-metrics), [Entity types](https://learn.microsoft.com/fabric/iq/ontology/how-to-create-entity-types), [Relationship types](https://learn.microsoft.com/fabric/iq/ontology/how-to-create-relationship-types), [Rules](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-rules), [glossary](https://learn.microsoft.com/fabric/iq/ontology/resources-glossary), [troubleshooting](https://learn.microsoft.com/fabric/iq/ontology/resources-troubleshooting). Portal: [ontology item](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24?experience=fabric-developer).
 
-`setup.py` uploads the folder with `POST .../ontologies/{id}/updateDefinition` (or creates the item), and fills four placeholders in the text: `{{WORKSPACE_ID}}`, `{{WORKSPACE_NAME}}`, `{{SEMANTIC_MODEL_ID}}`, `{{SEMANTIC_MODEL_NAME}}`. [scripts/update_ontology.py](../scripts/update_ontology.py) uploads only this folder, which is faster when you change a rule.
+`setup.py` uploads the folder with `POST .../ontologies/{id}/updateDefinition` (or creates the item). The TMDL files contain static values for workspace `ProjectPlanning` (`66d9c2b2-d35e-4555-9e74-926164ce584c`) and semantic model `ProjectPlanningModel` (`22fb9927-ac28-4092-80c0-0f3d7a56a156`). [scripts/update_ontology.py](../scripts/update_ontology.py) uploads only this folder, which is faster when you change a rule.
 
 ### Structure files
 
@@ -369,27 +369,27 @@ Files: [expressions.tmdl](../ontology/expressions.tmdl) and [tables/*.tmdl](../o
 
 | Setting | Value | Meaning |
 |---------|-------|---------|
-| Expression name | `DirectQuery to AS - {workspaceId}/{modelId}` | Name that the portal uses for a semantic-model source |
+| Expression name | `SemanticModelSource` | Shared local name used by all six partitions and four external measures; the source connection is in its expression body |
 | Expression body | `AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/{workspaceName}", "{modelName}")`, then the cube `Model` | Opens the semantic model through its Power BI address |
 | Partition `mode` | `directQuery` | The semantic model is queried live with DAX. The TMDL reference documents only `directLake` |
 | Partition source | `entityName`, `expressionSource` set to the expression, no `schemaName` | Points a table to a table of the model |
 | Measures | `EXTERNALMEASURE("Budget EUR", DOUBLE, "<expression name>")` on `projects` and `tasks` | Pointers to the DAX measures. The four measures keep their descriptions |
-| Annotations | none | Fabric adds its own `ONT_*` annotations (five of them, with `ONT_ItemKind = SemanticModel`) |
+| Annotations | Six `ONT_*` annotations per partition | Identify the source workspace and semantic model; persisted by `getDefinition` after deployment |
 
-What the documentation says: the semantic model is a supported data source in the portal (the "Generate Ontology" action), and the TMDL reference shows only the lakehouse form. We copied the form that the portal writes, found by generating an ontology and reading it back with `getDefinition`. Evidence and tests (annotations not needed, workspace name text does not matter, full copy by REST works) are in [microsoft-guidance.md](microsoft-guidance.md#binding-the-ontology-to-a-semantic-model-by-code).
+What the documentation says: the semantic model is a supported data source in the portal (the "Generate Ontology" action), and the TMDL reference shows only the lakehouse form. We copied the form that the portal writes, found by generating an ontology and reading it back with `getDefinition`. Agent queries worked without source annotations, but the portal's Project Instances view only worked after we added them. Evidence and API roundtrip tests are in [microsoft-guidance.md](microsoft-guidance.md#binding-the-ontology-to-a-semantic-model-by-code).
 
 Strengths:
 
 * Exact numbers. The ontology endpoint uses the DAX measures, so a duration or a cost is calculated by the engine, not by a language model.
-* The files are plain text and `{{...}}` placeholders keep the files free of environment values.
+* The files are plain text with concrete connection values, so the bindings can be followed directly. Deploying to a different environment requires updating the ontology expression body, source annotations and the semantic model SQL endpoint expression. The name `SemanticModelSource` and its references can stay unchanged.
 * The binding survived a full update by REST and a copy created from the definition alone (6 of 6 answers in each case).
 
 Weaknesses:
 
 * It is derived from observation. If Microsoft changes the portal output, `ontology/tables/` and `expressions.tmdl` must follow. The check is to generate a test ontology in the portal and compare its `getDefinition` result with these files.
 * Known limits of a semantic-model binding: no graph, no Fabric data agent on top of it (known issue), no service principal on the MCP endpoint, no Import mode, no Decimal values. See the [ontology limitations](https://learn.microsoft.com/fabric/iq/ontology/resources-troubleshooting) and [microsoft-guidance.md](microsoft-guidance.md#limits-with-a-semantic-model-binding).
-* A rule can only point to an entity that exists as an entity file. The generated definition has none, so the demo keeps its own entity files. A portal-generated ontology, updated by code, was not tested.
-* The `ONT_*` annotations that Fabric adds are undocumented. Issue [microsoft/skills-for-fabric#107](https://github.com/microsoft/skills-for-fabric/issues/107) reports that an update can strip them for portal-created ontologies. Ours survive because Fabric re-adds them.
+* A rule can only point to an entity that exists as an entity file. The generated definition has none, so the demo keeps its own entity files. Preserve existing lineage tags when updating; replacing the reference ontology's identities with ours failed a DataSources lineage check.
+* The `ONT_*` annotations that the portal writes are undocumented. Issue [microsoft/skills-for-fabric#107](https://github.com/microsoft/skills-for-fabric/issues/107) reports problems for lakehouse bindings. Our semantic-model reference survived an API roundtrip, but this does not establish a general guarantee for preview metadata.
 
 ### Entity types
 
@@ -397,7 +397,7 @@ Files: [entities/*.tmdl](../ontology/entities). Each entity has a description (`
 
 | Entity | Table | Key | Synonyms | Properties |
 |--------|-------|-----|----------|------------|
-| `Project` | `projects` | `ProjectId` | Construction project, Building project | `ProjectId`, `Name`, `Customer`, `ManagerId`, `StartDate`, `EndDate`, `BudgetEur` |
+| `Project` | `projects` | `ProjectId` | Construction project, Building project, qwert | `ProjectId`, `Name`, `Customer`, `ManagerId`, `StartDate`, `EndDate`, `BudgetEur` |
 | `ProjectManager` | `project_managers` | `ManagerId` | Project lead | `ManagerId`, `Name`, `Email` |
 | `ProjectDocument` | `documents` | `DocId` | Document, Contract document | `DocId`, `ProjectId`, `DocType`, `Title`, `Content` and the 12 extracted fields (17 in total) |
 | `Email` | `emails` | `MailId` | Mail, Message | `MailId`, `ProjectId`, `Sender`, `Subject`, `Body`, `ReceivedAt` |
@@ -459,6 +459,10 @@ Weaknesses:
 Files: [scripts/setup.py](../scripts/setup.py) (functions `create_connection` and `setup_agent`), [scripts/agent_instructions.txt](../scripts/agent_instructions.txt). Docs: [Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/overview), [runtime components](https://learn.microsoft.com/azure/foundry/agents/concepts/runtime-components), [environment setup](https://learn.microsoft.com/azure/foundry/agents/environment-setup), [Fabric IQ tool](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/fabric-iq), [MCP tools](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/model-context-protocol), [ontology MCP server](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-ontology-mcp-server), [Foundry IQ agent with an ontology](https://learn.microsoft.com/fabric/iq/ontology/how-to-create-agent-foundry-iq), [responses API](https://learn.microsoft.com/azure/foundry/openai/how-to/responses).
 
 ### Connection `fabric-iq-ontology`
+
+[setup_agent.py](../scripts/setup_agent.py) creates the connection and agent version without sending
+a test question. [setup.py](../scripts/setup.py) calls it after creating the ontology and passes
+the Fabric IDs, deployment settings and Azure CLI credential.
 
 | Setting | Value | Meaning |
 |---------|-------|---------|
@@ -528,7 +532,7 @@ Strengths: no key or secret in the repository. Weaknesses: everything hangs on o
 |------|--------------------|----------|----------|
 | Binding the ontology to a semantic model | Portal action "Generate Ontology" | The same result written by code | [microsoft-guidance.md](microsoft-guidance.md#binding-the-ontology-to-a-semantic-model-by-code) |
 | Partition `mode` | `directLake` | `directQuery` | same |
-| `ONT_*` annotations | Not mentioned | Not written by us, Fabric adds five | [microsoft-guidance.md](microsoft-guidance.md#the-ont-annotations) |
+| `ONT_*` annotations | Not mentioned | Six per partition; adding them fixed Project Instances in the portal | [microsoft-guidance.md](microsoft-guidance.md#the-ont-annotations) |
 | Rule descriptions | Not returned by `getDefinition` | Stored and returned | [microsoft-guidance.md](microsoft-guidance.md#rule-descriptions) |
 | Prep for AI | Used by data agents | Ignored by the ontology endpoint (0 of 6) | [microsoft-guidance.md](microsoft-guidance.md#semantic-model-preparation-for-ai) |
 | Tool names | Copilot Studio page lists `list_ontology_entity_types` and `search_ontology` | The endpoint offers `ask_ontology`, `list_ontology_entities`, `list_ontology_rules` | [microsoft-guidance.md](microsoft-guidance.md#tool-names) |
@@ -560,8 +564,6 @@ Weaknesses and risks, in order of importance for a real use:
 * Test the demo with a user who is not a Fabric administrator, to clear up "publish before use".
 * Measure the email ratings again with new emails that were not used to tune the rule.
 * Decide whether to rename `documents.BudgetEur` to remove the budget ambiguity for good.
-* Test whether portal functions such as the entity data preview need the `ONT_*` annotations with this binding.
-* Test a definition that was created in the portal and then updated by code.
 * Decide the capacity size and an auto-pause or budget alert. The live capacity is F4 and Active.
 * Remove the unused graph item if you want a clean state.
 

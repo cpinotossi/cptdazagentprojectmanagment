@@ -5,6 +5,7 @@ entity Project
 	keyProperty: ProjectId
 	synonym 'Construction project'
 	synonym 'Building project'
+	synonym qwert
 
 	/// Unique project ID, for example P-100.
 	property ProjectId
