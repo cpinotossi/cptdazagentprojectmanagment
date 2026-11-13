@@ -26,7 +26,10 @@ class DeploymentIdentityTests(unittest.TestCase):
             federation["properties"]["subject"],
             "[format('repo:{0}:environment:{1}', parameters('githubRepository'), parameters('githubEnvironment'))]",
         )
-        self.assertEqual(template["parameters"]["githubRepository"]["defaultValue"], "cpinotossi/cptdazagentprojectmanagment")
+        self.assertEqual(
+            template["parameters"]["githubRepository"]["defaultValue"],
+            "cpinotossi@8876980/cptdazagentprojectmanagment@1442137267",
+        )
         self.assertEqual(template["parameters"]["githubEnvironment"]["defaultValue"], "azure-demo")
         role = next(r for r in resources if r["type"] == "Microsoft.Authorization/roleAssignments")
         self.assertEqual(role["properties"]["principalType"], "ServicePrincipal")

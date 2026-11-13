@@ -4,7 +4,8 @@ targetScope = 'resourceGroup'
 param identityName string = 'id-projplan-github-deploy'
 
 param location string = resourceGroup().location
-param githubRepository string = 'cpinotossi/cptdazagentprojectmanagment'
+@description('Repository component of the OIDC subject, including immutable owner and repository IDs.')
+param githubRepository string = 'cpinotossi@8876980/cptdazagentprojectmanagment@1442137267'
 param githubEnvironment string = 'azure-demo'
 
 var contributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')

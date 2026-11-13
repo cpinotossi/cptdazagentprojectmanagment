@@ -58,8 +58,14 @@ The federation uses:
 ```text
 issuer:   https://token.actions.githubusercontent.com
 audience: api://AzureADTokenExchange
-subject:  repo:cpinotossi/cptdazagentprojectmanagment:environment:azure-demo
+subject:  repo:cpinotossi@8876980/cptdazagentprojectmanagment@1442137267:environment:azure-demo
 ```
+
+GitHub's immutable subject format includes both the owner ID and repository ID.
+It is the default for repositories created after July 15, 2026 and also applies
+after relevant renames or transfers. The first live login exposed a mismatch
+with the old name-only template. Use the exact subject emitted by GitHub; do not
+remove IDs or weaken the trust to fix an `AADSTS700213` error.
 
 This trusts the environment, not one specific workflow. Protect the environment,
 main branch and workflow changes; any eligible workflow referencing that
@@ -79,8 +85,8 @@ Before using this beyond the current manually triggered demo:
    protections where available.
 2. Protect main against unreviewed workflow changes. Manual dispatch and an
    environment branch restriction are not independent approval.
-3. Review, commit and publish the workflow files through your normal Git process.
-   The workflow files are currently local and no Actions run has been started.
+3. Review, commit and publish workflow updates through your normal Git process.
+   The initial workflow files are published on main and Infrastructure CI passed.
 
 The configured IDs are not credentials; no client secret is created or required.
 
@@ -126,9 +132,9 @@ plan; if main changes, preview the new revision. Deployment runs are serialized.
 Do not run the full main deployment concurrently.
 
 Local tests, template compilation and live bootstrap readback have passed.
-The workflow YAML has passed actionlint. Actual GitHub-issued OIDC login and the
-Logic Apps deployment remain unverified until the first authorized Actions run.
-This preparation intentionally does not activate the workflow or implement the
+The workflow YAML has passed actionlint. Use a what-if run to verify GitHub-issued
+OIDC login without deploying. Actual Logic Apps deployment is a separate manual
+operation. This preparation intentionally does not activate the workflow or implement the
 ontology integration described in the
 [Consumption guide](logic-apps-consumption.md).
 
@@ -137,3 +143,4 @@ ontology integration described in the
 * [Azure Login with OIDC, including managed identities](https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect)
 * [Managed identity federated credential Bicep reference](https://learn.microsoft.com/en-us/azure/templates/microsoft.managedidentity/userassignedidentities/federatedidentitycredentials)
 * [GitHub deployment environments and protection rules](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+* [GitHub immutable OIDC subject claims](https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims)
