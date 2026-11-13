@@ -1,0 +1,63 @@
+/// A material quantity supplied by one supplier for one work package. Follow its task to the project and project manager. A supplier-disruption assessment includes alternative sourcing: for each conflicting planned delivery, follow Delivery Of Material and Supplier Offers Material to other suppliers of that same product, excluding this delivery's disrupted supplier. Include recorded candidates immediately, not just an offer to search in a follow-up. A candidate is not confirmed stock, capacity, price, delivery or an order; confirm availability, required quantity, delivery by the needed date, price and procurement approval before a switch. A planned delivery is not proof of receipt or a confirmed construction delay.
+entity MaterialDelivery
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5303
+	backingTable: material_deliveries
+	keyProperty: DeliveryId
+	synonym 'Material delivery'
+	synonym 'Materiallieferung'
+
+	/// Unique delivery ID.
+	property DeliveryId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5331
+
+		backingConfiguration
+			valueColumn: material_deliveries.DeliveryId
+
+	/// Supplier of this delivery.
+	property SupplierId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5332
+
+		backingConfiguration
+			valueColumn: material_deliveries.SupplierId
+
+	/// Specific product being supplied.
+	property MaterialId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5333
+
+		backingConfiguration
+			valueColumn: material_deliveries.MaterialId
+
+	/// Work package that needs the material; this task identifies the project.
+	property TaskId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5334
+
+		backingConfiguration
+			valueColumn: material_deliveries.TaskId
+
+	/// Planned quantity in the unit of the linked material.
+	property Quantity
+		dataType: double
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5335
+
+		backingConfiguration
+			valueColumn: material_deliveries.Quantity
+
+	/// Planned delivery date. Compare this date with the supplier's reported delivery-stop interval, not just with the overall project term.
+	property PlannedDeliveryDate
+		dataType: dateTime
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5336
+
+		backingConfiguration
+			valueColumn: material_deliveries.PlannedDeliveryDate
+
+	/// Planned means still open, Delivered means received, and Cancelled means no longer expected.
+	property Status
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5337
+
+		backingConfiguration
+			valueColumn: material_deliveries.Status

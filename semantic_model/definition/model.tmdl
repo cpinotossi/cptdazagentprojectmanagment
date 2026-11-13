@@ -9,4 +9,8 @@ ref table documents
 ref table emails
 ref table tasks
 ref table task_dependencies
+ref table suppliers
+ref table materials
+ref table material_deliveries
+ref table supplier_materials
 ref expression DatabaseQuery

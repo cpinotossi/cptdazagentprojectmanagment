@@ -18,7 +18,7 @@ from openai.types.evals import RunCreateResponse, RunRetrieveResponse
 from setup_agent import AGENT_NAME
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASET_NAME = "project-planning-groundedness"
+DATASET_NAME = "project-planning-business-checks"
 EVALUATOR = "builtin.groundedness"
 THRESHOLD = 3
 
@@ -214,7 +214,7 @@ def main() -> None:
     parser.add_argument("--agent", default=AGENT_NAME)
     parser.add_argument("--agent-version")
     parser.add_argument("--judge-model", default="gpt-4.1")
-    parser.add_argument("--dataset", type=Path, default=ROOT / "evaluations/groundedness_tests.jsonl")
+    parser.add_argument("--dataset", type=Path, default=ROOT / "evaluations/business_tests.jsonl")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "evaluations/runs")
     parser.add_argument("--timeout", type=int, default=1800)
     parser.add_argument("--resume", type=Path)

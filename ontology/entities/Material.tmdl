@@ -1,0 +1,31 @@
+/// A specific construction product. Match the product, not just its general material category.
+entity Material
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5302
+	backingTable: materials
+	keyProperty: MaterialId
+	synonym 'Building material'
+	synonym 'Baumaterial'
+
+	/// Unique material ID.
+	property MaterialId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5321
+
+		backingConfiguration
+			valueColumn: materials.MaterialId
+
+	/// Product name including its identifying product code.
+	property Name
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5322
+
+		backingConfiguration
+			valueColumn: materials.Name
+
+	/// Unit used by the quantities of this material, for example m2.
+	property Unit
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5323
+
+		backingConfiguration
+			valueColumn: materials.Unit

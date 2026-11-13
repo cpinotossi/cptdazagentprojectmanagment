@@ -1,0 +1,93 @@
+name: Deploy Logic Apps Consumption
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Preview first; review that run before starting a deployment.
+        required: true
+        type: choice
+        default: what-if
+        options:
+          - what-if
+          - deploy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-demo-logic-app-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'cpinotossi/cptdazagentprojectmanagment' && github.ref == 'refs/heads/main'
+    environment: azure-demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      LOGIC_APP_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      LOGIC_APP_LOCATION: ${{ vars.AZURE_LOCATION }}
+      LOGIC_APP_LOG_WORKSPACE_ID: ${{ vars.LOGIC_APP_LOG_WORKSPACE_ID }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Check deployment configuration
+        env:
+          CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+        run: |
+          set -euo pipefail
+          : "${CLIENT_ID:?Configure AZURE_CLIENT_ID on environment azure-demo}"
+          : "${TENANT_ID:?Configure AZURE_TENANT_ID on environment azure-demo}"
+          : "${LOGIC_APP_LOCATION:?Configure AZURE_LOCATION on environment azure-demo}"
+          : "${LOGIC_APP_LOG_WORKSPACE_ID:?Configure LOGIC_APP_LOG_WORKSPACE_ID on environment azure-demo}"
+          test "$AZURE_SUBSCRIPTION_ID" = '98525264-1eb4-493f-983d-16a330caa7f6'
+          test "$TENANT_ID" = 'f71980b2-590a-4de9-90d5-6fbc867da951'
+          test "$LOGIC_APP_RESOURCE_GROUP" = 'rg-projplan-demo'
+          case "$OPERATION" in what-if|deploy) ;; *) exit 2 ;; esac
+      - name: Azure login with GitHub OIDC
+        uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Compile and test the deployment
+        run: |
+          set -euo pipefail
+          az bicep install --version v0.44.1
+          python3 -m unittest discover -s tests -p test_logic_app_consumption.py -v
+          python3 -m unittest discover -s tests -p test_deployment_identity.py -v
+      - name: Preview the Consumption module
+        run: bash scripts/deploy_logic_app.sh what-if
+      - name: Apply the Consumption module
+        if: inputs.operation == 'deploy'
+        env:
+          CONFIRM_LOGIC_APP_DEPLOYMENT: 'yes'
+        run: bash scripts/deploy_logic_app.sh deploy
+      - name: Verify the deployed workflow remains disabled
+        if: inputs.operation == 'deploy'
+        run: |
+          set -euo pipefail
+          id="$(az deployment group show --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$LOGIC_APP_RESOURCE_GROUP" --name logic-apps-consumption-only \
+            --query properties.outputs.logicAppResourceId.value --output tsv)"
+          test -n "$id" && test "$id" != None
+          state="$(az resource show --ids "$id" --api-version 2019-05-01 \
+            --query properties.state --output tsv)"
+          test "$state" = Disabled
+      - name: Record deployment provenance
+        run: |
+          {
+            printf '### Logic Apps Consumption\n'
+            printf 'Operation: `%s`\n\n' "$OPERATION"
+            printf 'Commit: `%s`\n\n' "$GITHUB_SHA"
+            printf 'Target: `%s / %s`\n\n' "$AZURE_SUBSCRIPTION_ID" "$LOGIC_APP_RESOURCE_GROUP"
+            printf 'No Fabric imports, agent publication or workflow activation.\n'
+          } >> "$GITHUB_STEP_SUMMARY"

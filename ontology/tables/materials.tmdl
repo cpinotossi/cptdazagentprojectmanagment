@@ -1,0 +1,35 @@
+table materials
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5202
+
+	column MaterialId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5221
+		sourceColumn: MaterialId
+
+	column Name
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5222
+		sourceColumn: Name
+
+	column Unit
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5223
+		sourceColumn: Unit
+
+	partition materials-partition = entity
+		mode: directQuery
+		source
+			entityName: materials
+			expressionSource: SemanticModelSource
+
+		annotation ONT_WorkspaceId = 66d9c2b2-d35e-4555-9e74-926164ce584c
+
+		annotation ONT_ItemId = 22fb9927-ac28-4092-80c0-0f3d7a56a156
+
+		annotation ONT_ItemKind = SemanticModel
+
+		annotation ONT_ItemName = ProjectPlanningModel
+
+		annotation ONT_WorkspaceName = ProjectPlanning
+
+		annotation ONT_PinnedAtUtc = 2026-11-13T22:29:15+00:00

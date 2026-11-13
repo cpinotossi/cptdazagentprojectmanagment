@@ -1,0 +1,63 @@
+{
+  "definition": {
+    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+    "contentVersion": "1.0.0.0",
+    "triggers": {
+      "When_a_request_is_received": {
+        "type": "Request",
+        "kind": "Http",
+        "inputs": {
+          "method": "POST",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string",
+                "minLength": 1
+              },
+              "context": {
+                "type": "string"
+              }
+            },
+            "required": ["query"],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    "actions": {
+      "Reject_unconfigured_integration": {
+        "type": "Response",
+        "kind": "Http",
+        "inputs": {
+          "statusCode": 503,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": {
+            "error": {
+              "code": "OntologyIntegrationNotConfigured",
+              "message": "Preparation scaffold only. Delegated Fabric authentication, agent integration and mandatory orchestration stages have not been implemented. No business assessment was performed."
+            },
+            "runId": "@workflow().run.name"
+          }
+        },
+        "runAfter": {}
+      },
+      "Fail_unconfigured_run": {
+        "type": "Terminate",
+        "inputs": {
+          "runStatus": "Failed",
+          "runError": {
+            "code": "OntologyIntegrationNotConfigured",
+            "message": "The orchestration is not ready for activation."
+          }
+        },
+        "runAfter": {
+          "Reject_unconfigured_integration": ["Succeeded"]
+        }
+      }
+    },
+    "outputs": {}
+  }
+}

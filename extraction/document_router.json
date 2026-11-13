@@ -1,0 +1,29 @@
+{
+  "description": "Classify construction documents by their substantive content and route them for term extraction. A filename or heading can be misleading; binding agreements take precedence over a heading saying Offer.",
+  "baseAnalyzerId": "prebuilt-document",
+  "models": {
+    "completion": "gpt-4.1"
+  },
+  "config": {
+    "returnDetails": true,
+    "enableSegment": false,
+    "omitContent": true,
+    "contentCategories": {
+      "Specification": {
+        "description": "Technical requirements defining the construction scope, building characteristics, mandatory standards or completion requirements, rather than a commercial quotation or binding agreement.",
+        "analyzerId": "projectDocumentTerms"
+      },
+      "Offer": {
+        "description": "A provider's commercial proposal or quotation with prices, assumptions and proposed work or change rates. Not an already binding agreement between parties, even if a binding agreement is incorrectly titled Offer.",
+        "analyzerId": "projectDocumentTerms"
+      },
+      "Contract": {
+        "description": "A binding construction agreement between client and contractor, including contractual obligations, acceptance, penalties, termination rights or agreed budgets and approval requirements. Classify by these substantive provisions even if the filename or heading says Offer.",
+        "analyzerId": "projectDocumentTerms"
+      },
+      "Other": {
+        "description": "Content that does not clearly fit a construction specification, commercial offer or binding construction contract. Do not guess a type from the heading."
+      }
+    }
+  }
+}

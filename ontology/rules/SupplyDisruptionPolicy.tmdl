@@ -1,0 +1,37 @@
+/// Assess supplier news through product-specific deliveries and their work packages, not through project names or project-wide date overlap.
+rule SupplyDisruptionPolicy
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5401
+	statement: For a supplier disruption report, first match the named supplier and specific material to recorded material deliveries. For each matching delivery with Status Planned, compare PlannedDeliveryDate with the reported delivery-stop interval, including both boundary dates. A planned delivery inside the interval conflicts with the reported stop; a delivery outside it has no direct date conflict with that stated interval, not a guarantee against other or future disruptions. Delivered or Cancelled deliveries are not outstanding deliveries. Follow each delivery to its task, project and responsible project manager; state their IDs, names, dates and the manager's email, and explain both conflicting and non-conflicting deliveries. A delivery conflict identifies supply exposure, not a confirmed task delay, project completion delay, extra cost or contractual penalty. For each conflicting delivery, proactively follow Supplier Offers Material for the same specific material and name other recorded suppliers with their IDs as alternative sourcing candidates, excluding the disrupted supplier; do the same when asked for alternatives directly. Do not require an existing project delivery from an alternative supplier. An assortment entry establishes only a potential source, not stock, capacity, an offered price, a confirmed delivery date or an order. Absence of a disruption report for a candidate is not proof of availability. State explicitly that availability, the required quantity, delivery by the needed date, price and procurement approval must be confirmed before a substitution; do not claim a switch was made. If no other supplier is recorded for that material, state that no alternative is recorded rather than inventing one. Clarify supplier confirmation, stock, replacement sources, actual delivery dates, task dependencies and schedule buffers before claiming downstream effects. Treat fictional reports as scenarios and reported recovery dates as claims of the report, not verified guarantees. Do not apply email-only mandatory escalation deadlines to news reports.
+	ruleReferencedEntity Supplier
+		propertyScope: specific
+		ruleReferencedProperty Name
+	ruleReferencedEntity Material
+		propertyScope: specific
+		ruleReferencedProperty Name
+		ruleReferencedProperty Unit
+	ruleReferencedEntity MaterialDelivery
+		propertyScope: specific
+		ruleReferencedProperty PlannedDeliveryDate
+		ruleReferencedProperty Status
+		ruleReferencedProperty Quantity
+	ruleReferencedEntity Task
+		propertyScope: specific
+		ruleReferencedProperty Name
+		ruleReferencedProperty StartDate
+		ruleReferencedProperty EndDate
+	ruleReferencedEntity Project
+		propertyScope: specific
+		ruleReferencedProperty Name
+	ruleReferencedEntity ProjectManager
+		propertyScope: specific
+		ruleReferencedProperty Name
+		ruleReferencedProperty Email
+	ruleReferencedRelationship 'Delivery From Supplier'
+	ruleReferencedRelationship 'Delivery Of Material'
+	ruleReferencedRelationship 'Delivery For Task'
+	ruleReferencedRelationship 'Supplier Offers Material'
+	ruleReferencedRelationship 'Task Of Project'
+	ruleReferencedRelationship 'Task Depends On'
+	ruleReferencedRelationship 'Project Managed By'
+	annotation Category = Procurement
+	annotation Source = Supplier reports and planned material deliveries

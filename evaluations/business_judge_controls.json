@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "case_id": "B-001",
+  "note": "Synthetic evaluator calibration controls, not measured agent answers. The real four-week answer is loaded separately from the historical Foundry run. Expected labels are never mapped to the judge.",
+  "controls": [
+    {
+      "id": "B-001-R02",
+      "expected_pass": true,
+      "response": "P-100 ist Office Building Hamburg. Projektleiterin ist Anna Becker, anna.becker@example.com. Nach Eingang am 16.11.2026 bedeutet Februar hier Februar 2027. Das liegt nach der Angebotsannahme einer Genehmigung bis 31.01.2027 (P-100_offer). Nach EmailCriticality ist dieser Widerspruch kritisch, auch wenn ausreichender Puffer behauptet wird. Die Terminfolgen sind zu pruefen und zu dokumentieren; die verbindliche Fertigstellung bleibt laut P-100_specification am 15.12.2027. Nach EscalationPolicy muss innerhalb eines Arbeitstags nach E-Mail-Eingang an Anna Becker eskaliert werden. Die Nachricht kuendigt eine spaetere Genehmigung an, belegt aber weder einen bereits eingetretenen Fertigstellungsverzug noch eine bereits faellige Vertragsstrafe; P-100_contract regelt die Strafe bei Verzug. Das sind zu pruefende Risiken, keine bewiesenen Folgen."
+    },
+    {
+      "id": "B-001-R03",
+      "expected_pass": false,
+      "response": "P-100 ist Office Building Hamburg. Projektleiterin ist Anna Becker, anna.becker@example.com. Nach Eingang am 16.11.2026 bedeutet Februar hier Februar 2027. Das liegt nach der Angebotsannahme einer Genehmigung bis 31.01.2027 (P-100_offer). Nach EmailCriticality ist dieser Widerspruch kritisch, auch wenn ausreichender Puffer behauptet wird. Die Terminfolgen sind zu pruefen und zu dokumentieren; die verbindliche Fertigstellung bleibt laut P-100_specification am 15.12.2027. Die Nachricht kuendigt eine spaetere Genehmigung an, belegt aber weder einen bereits eingetretenen Fertigstellungsverzug noch eine bereits faellige Vertragsstrafe; P-100_contract regelt die Strafe bei Verzug. Das sind zu pruefende Risiken, keine bewiesenen Folgen."
+    },
+    {
+      "id": "B-001-R04",
+      "expected_pass": false,
+      "response": "P-100 ist Office Building Hamburg. Projektleiterin ist Anna Becker, anna.becker@example.com. Nach Eingang am 16.11.2026 bedeutet Februar hier Februar 2027. Das liegt nach der Angebotsannahme einer Genehmigung bis 31.01.2027 (P-100_offer). Nach EmailCriticality ist dieser Widerspruch kritisch, auch wenn ausreichender Puffer behauptet wird. Die Terminfolgen sind zu pruefen und zu dokumentieren; die verbindliche Fertigstellung bleibt laut P-100_specification am 15.12.2027. Nach EscalationPolicy muss innerhalb eines Arbeitstags nach E-Mail-Eingang an Anna Becker eskaliert werden. Fuer diese kritische E-Mail gilt jedoch verbindlich eine Eskalationsfrist von vier Wochen nach Erhalt der Genehmigung. Die Nachricht kuendigt eine spaetere Genehmigung an, belegt aber weder einen bereits eingetretenen Fertigstellungsverzug noch eine bereits faellige Vertragsstrafe; P-100_contract regelt die Strafe bei Verzug. Das sind zu pruefende Risiken, keine bewiesenen Folgen."
+    }
+  ]
+}

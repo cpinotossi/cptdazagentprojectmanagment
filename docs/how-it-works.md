@@ -57,7 +57,7 @@ An ontology contains five kinds of things:
 | Entity type | A kind of business object | `Project`, `Email` |
 | Property | A fact about an entity | `Project.BudgetEur` |
 | Relationship | A named link between two entity types | `Email About Project` |
-| Rule | A business policy written in plain language and linked to entities | `EscalationPolicy` |
+| Rule | A business policy written in plain language and linked to entities | `EmailCriticality` |
 | Data binding | The link from an entity or property to a table or column | `Project` is backed by table `projects` |
 
 Descriptions and synonyms are metadata on entities, properties and relationships. A synonym such as "Project lead" for `ProjectManager` helps the agent understand a question that uses different words.
@@ -75,7 +75,7 @@ In a typical Foundry setup an agent retrieves text chunks from an index (Azure A
 
 ## The data model of the demo
 
-Five tables become five entity types. A sixth table, `task_dependencies`, is a join table and has no entity type of its own: it only carries the relationship `Task Depends On`.
+Eight tables become eight entity types. Two more tables carry many-to-many relationships without separate entity types: `task_dependencies` backs `Task Depends On`, and `supplier_materials` backs `Supplier Offers Material`.
 
 ```mermaid
 flowchart LR
@@ -84,12 +84,19 @@ flowchart LR
     P["<b>Project</b><br/>ProjectId (key)<br/>Name<br/>Customer<br/>ManagerId<br/>StartDate<br/>EndDate<br/>BudgetEur"]
     M["<b>ProjectManager</b><br/>ManagerId (key)<br/>Name<br/>Email"]
     K["<b>Task</b><br/>TaskId (key)<br/>ProjectId<br/>Name<br/>StartDate<br/>EndDate<br/>CostEur"]
+    S["Supplier<br/>SupplierId (key)<br/>Name"]
+    B["Material<br/>MaterialId (key)<br/>Name<br/>Unit"]
+    L["MaterialDelivery<br/>DeliveryId (key)<br/>SupplierId<br/>MaterialId<br/>TaskId<br/>Quantity<br/>PlannedDeliveryDate<br/>Status"]
 
     E -->|"Email About Project (many to one)"| P
     D -->|"Document Of Project (many to one)"| P
     K -->|"Task Of Project (many to one)"| P
     K -->|"Task Depends On (many to many)"| K
     P -->|"Project Managed By (many to one)"| M
+    L -->|"Delivery From Supplier (many to one)"| S
+    L -->|"Delivery Of Material (many to one)"| B
+    L -->|"Delivery For Task (many to one)"| K
+    S -->|"Supplier Offers Material (many to many)"| B
 
     classDef emailNode fill:#ffe8cc,stroke:#e8590c,stroke-width:2px,color:#5c2a00
     classDef documentNode fill:#d3f9d8,stroke:#2f9e44,stroke-width:2px,color:#0b3d1a
@@ -113,7 +120,25 @@ Blue marks the central entity type `Project`, orange the emails, green the docum
 | `ProjectDocument` | `documents` | PDFs in `data/pdfs/`, text extracted by `setup.py` |
 | `Email` | `emails` | `emails.csv` |
 | `Task` | `tasks` | `tasks.csv` |
+| `Supplier` | `suppliers` | `suppliers.csv` |
+| `Material` | `materials` | `materials.csv` |
+| `MaterialDelivery` | `material_deliveries` | `material_deliveries.csv` |
 | none (join table of `Task Depends On`) | `task_dependencies` | `task_dependencies.csv` |
+| none (join table of `Supplier Offers Material`) | `supplier_materials` | `supplier_materials.csv` |
+
+The supply scenario adds two fictional suppliers, one insulation product and two
+planned deliveries. Delivery DL-100 belongs to T-104 in P-100 and is due on
+2027-08-02. DL-200 belongs to T-205 in P-200 and is due on 2028-01-03.
+A fictional product-specific delivery stop from 2027-08-01 through 2027-09-30
+conflicts only with DL-100. The delivery is linked to its project through its
+existing task, not through a duplicate project key or a new milestone entity.
+
+The assortment records link both suppliers to the same product. IsolierPartner
+GmbH (S-200) is a potential replacement for BauDaemm GmbH (S-100), even without a
+project delivery of its own. The rule proposes recorded alternative suppliers
+but does not equate an assortment entry with confirmed availability, a price,
+delivery capacity or an order. Quantity, timing, price and procurement approval
+need confirmation before a switch.
 
 The sample data has two projects, two project managers, four PDFs, five emails, 14 tasks (seven per project) and 15 dependencies between tasks. Amounts are in euros (columns `BudgetEur` and `CostEur`). The task costs of P-100 add up to exactly its budget of 2,400,000 EUR. The task costs of P-200 add up to 5,750,000 EUR, which is 15 percent above its budget of 5,000,000 EUR, so the cost warning email E-5 can be checked against the data. Every predecessor of a task ends before the task starts.
 
@@ -153,17 +178,17 @@ The rules are plain sentences, stored in the ontology:
 
 | Rule | Statement |
 |------|-----------|
-| `EmailCriticality` | Every incoming email is rated critical, watch or not critical by comparing it with its project and the project documents. Critical: it changes or threatens the completion date, the budget or the scope, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it. Watch: nothing changes today but it could later, for example a vague wish or an absence that falls inside the project term. Not critical: routine information, or an absence that lies completely outside the project term. A date without a year is placed in the next occurrence after the email date. |
-| `EscalationPolicy` | Every critical email must be escalated to the project manager of its project within 1 working day. |
+| `EmailCriticality` | Rate incoming emails critical, watch or not critical against project dates, budget and documents. Threats and document contradictions are critical even with schedule buffer. Resolve missing years; for absences and closures, state and compare the full period with project start and end. Critical emails must be escalated to the responsible project manager within 1 working day; watch and not-critical emails need no escalation. State the supporting evidence, manager name and email address, and required action. Never claim delivery without notification-tool confirmation. |
 | `ChangeRequestPolicy` | A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price. |
+| `SupplyDisruptionPolicy` | Match supplier and product to outstanding deliveries, compare planned delivery dates against the inclusive stop interval, and identify the task, project and manager. Distinguish supply exposure from confirmed downstream delays; an outside date is not a guarantee against future shortages. |
 
-Each rule lists the entities and relationships it refers to, so consumers can find the rules that matter for a given entity. A rule can also carry a description with the background and annotations with extra metadata. `ChangeRequestPolicy` has both: the description explains why a change request is priced on its own, and the annotations say that it is a commercial rule that rests on the offer and the specification. `EmailCriticality` has a description with the purpose of the rating and now links the properties it depends on (for example `Project.EndDate` and `ProjectDocument.AssumedPermitDate`). `EscalationPolicy` has a description and annotations too. Microsoft's guidance on rules and where ours falls short is in [microsoft-guidance.md](microsoft-guidance.md#ontology-design-guidance).
+Each rule links relevant entities, properties and relationships to support discovery and interpretation. `EmailCriticality` combines assessment and escalation, including `ProjectManager.Name`, `ProjectManager.Email` and `Project Managed By`; the former standalone `EscalationPolicy` has been removed. Its short description explains purpose and execution boundaries, while the statement holds the requirements. The current agent has no notification tool, so it reports required escalation without sending it. See [Microsoft guidance](microsoft-guidance.md#ontology-design-guidance).
 
 ## A semantic model for exact numbers
 
 The ontology agent calculates inexactly when the entities are bound to lakehouse tables. It counted 30 days for a task from 2027-01-01 to 2027-01-31 (31 days with both days counted), and an earlier answer called a delay of 59 days "exactly 8 weeks". Fabric does not promise otherwise: the documentation describes a natural language layer that turns questions into queries, and it lists a known issue with aggregation. Metrics are meant to come from the DAX measures of a Power BI semantic model, and the agent picks its query engine by the binding (SQL for lakehouse tables, DAX for semantic model measures).
 
-The demo therefore binds the ontology to a semantic model, `ProjectPlanningModel`, in `semantic_model/`. It reads the six lakehouse tables through Direct Lake, has the relationships between them and four DAX measures:
+The demo therefore binds the ontology to a semantic model, `ProjectPlanningModel`, in `semantic_model/`. It reads the ten lakehouse tables through Direct Lake, has the relationships between them and four DAX measures:
 
 | Measure | Table | Meaning |
 |---------|-------|---------|
@@ -201,11 +226,11 @@ entity Project
             valueColumn: projects.BudgetEur
 ```
 
-The lines starting with `///` are descriptions. `backingTable` and `valueColumn` are the data bindings. A rule file is shorter:
+The lines starting with `///` are descriptions. `backingTable` and `valueColumn` are the data bindings. A shortened rule excerpt looks like this:
 
 ```text
-rule EscalationPolicy
-    statement: Every critical email must be escalated to the project manager of its project within 1 working day.
+rule EmailCriticality
+    statement: ... Every critical email must be escalated to the project manager of its project within 1 working day. ...
     ruleReferencedEntity Email
     ruleReferencedEntity ProjectManager
 ```

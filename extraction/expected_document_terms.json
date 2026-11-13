@@ -15,6 +15,12 @@
     "PenaltyCapPercent": 5,
     "WithdrawalDelayWeeks": 8
   },
+  "P-200_offer": {
+    "TermStart": "2027-03-01",
+    "TermEnd": "2028-06-30",
+    "BudgetEur": 5000000,
+    "OverrunApprovalThresholdPercent": 10
+  },
   "P-200_contract": {
     "TermStart": "2027-03-01",
     "TermEnd": "2028-06-30",

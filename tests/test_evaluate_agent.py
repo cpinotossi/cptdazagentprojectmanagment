@@ -17,9 +17,9 @@ import evaluate_agent
 
 
 class EvaluationTests(unittest.TestCase):
-    def test_existing_ten_case_dataset_is_valid_agent_target_input(self) -> None:
-        cases = evaluate_agent.load_cases(ROOT / "evaluations/groundedness_tests.jsonl")
-        self.assertEqual(len(cases), 10)
+    def test_six_case_dataset_is_valid_agent_target_input(self) -> None:
+        cases = evaluate_agent.load_cases(ROOT / "evaluations/business_tests.jsonl")
+        self.assertEqual(len(cases), 6)
 
     def test_invalid_missing_duplicate_and_fabricated_rows_fail(self) -> None:
         case = {"id": "test", "query": "question", "context": "evidence", "ground_truth": "answer"}
@@ -75,11 +75,11 @@ class EvaluationTests(unittest.TestCase):
         client = Mock()
         client.post.side_effect = [evaluation, run]
         record = evaluate_agent.create_run(
-            project, client, "https://foundry.example", ROOT / "evaluations/groundedness_tests.jsonl",
+            project, client, "https://foundry.example", ROOT / "evaluations/business_tests.jsonl",
             "agent", None, "judge",
         )
         self.assertEqual(record["agent"], {"name": "agent", "version": "7"})
-        self.assertEqual(record["dataset"]["case_count"], 10)
+        self.assertEqual(record["dataset"]["case_count"], 6)
         project.datasets.upload_file.assert_called_once()
         project.agents.create_version.assert_not_called()
         self.assertEqual(client.post.call_args_list[1].args[0], "/evals/eval-id/runs")
@@ -98,7 +98,7 @@ class EvaluationTests(unittest.TestCase):
             RunCreateResponse.model_construct(id="run-id"),
         ]
         record = evaluate_agent.create_run(
-            project, client, "https://foundry.example", ROOT / "evaluations/groundedness_tests.jsonl",
+            project, client, "https://foundry.example", ROOT / "evaluations/business_tests.jsonl",
             "agent", "6", "judge",
         )
         self.assertEqual(record["agent"]["version"], "6")

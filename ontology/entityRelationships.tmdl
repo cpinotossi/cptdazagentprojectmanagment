@@ -45,3 +45,42 @@ entityRelationship 'Task Depends On'
 		table: task_dependencies
 		fromRelationship: rel_dependency_task
 		toRelationship: rel_dependency_predecessor
+
+/// A material delivery is supplied by one recorded company.
+entityRelationship 'Delivery From Supplier'
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5501
+	fromEntity: MaterialDelivery
+	toEntity: Supplier
+
+	backingConfiguration
+		relationship: rel_delivery_from_supplier
+
+/// A material delivery contains one specific product.
+entityRelationship 'Delivery Of Material'
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5502
+	fromEntity: MaterialDelivery
+	toEntity: Material
+
+	backingConfiguration
+		relationship: rel_delivery_of_material
+
+/// A material delivery is allocated to one work package, which identifies its project.
+entityRelationship 'Delivery For Task'
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5503
+	fromEntity: MaterialDelivery
+	toEntity: Task
+
+	backingConfiguration
+		relationship: rel_delivery_for_task
+
+/// A supplier lists a material in its assortment, even without any project delivery. Use this relationship in reverse from a disrupted delivery's material to identify other suppliers immediately as part of the disruption assessment, even without an explicit request for alternatives. This is a potential sourcing relationship, not proof of stock, delivery capacity, a quotation or an order.
+entityRelationship 'Supplier Offers Material'
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5603
+	fromEntity: Supplier
+	toEntity: Material
+
+	backingConfiguration
+		type: table
+		table: supplier_materials
+		fromRelationship: rel_portfolio_supplier
+		toRelationship: rel_portfolio_material

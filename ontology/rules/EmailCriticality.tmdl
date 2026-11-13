@@ -1,7 +1,9 @@
-/// The project manager has to decide which incoming emails need action today and which can wait. The rating is a first triage and does not replace reading the email. It compares the email with the dates and the budget of its project and with the clauses of the specification, offer and contract of that project.
+/// Identify incoming emails that require the responsible project manager's attention.
+/// Keep the assessment and its required escalation together as one business policy.
+/// The policy defines the required action; sending a notification requires an agent tool.
 rule EmailCriticality
 	lineageTag: 715b2ef6-b7f8-5506-a153-11dcf03bf6a2
-	statement: Every incoming email must be rated critical, watch or not critical by comparing it with its project and the documents of that project. Rate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it. Rate it watch if nothing changes today but it could affect the schedule, the cost or the scope later, for example a vague wish or an absence that falls inside the term of the project (between its start date and its end date). Rate it not critical if it is routine information without effect on schedule, cost, scope or contract, for example a status meeting, a request for an existing document, or an absence that lies completely outside the term of the project. Place a date without a year in the next occurrence after the date of the email.
+	statement: Every incoming email must be rated critical, watch or not critical by comparing it with its project and the documents of that project. Rate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it. Rate it watch if nothing changes today but it could affect the schedule, the cost or the scope later, for example a vague wish or an absence that falls inside the term of the project (between its start date and its end date). Rate it not critical if it is routine information without effect on schedule, cost, scope or contract, for example a status meeting, a request for an existing document, or an absence that lies completely outside the term of the project. Place a date without a year in the next occurrence after the date of the email. For an absence or office-closure notice, resolve the full continuous period including years and compare it with the project's StartDate and EndDate before rating the email. In the explanation, state the absence or closure period and the project start and end dates including years, and explain whether and where the periods overlap. The sender's claim that there is no impact does not replace this comparison. Every critical email must be escalated to the project manager of its project within 1 working day. Emails rated watch or not critical need no escalation. State the rating, its supporting evidence, the responsible project manager's name and email address, and whether escalation is required; for a critical email, include the 1-working-day deadline. Do not claim that a notification has been sent unless the notification tool confirms success.
 	ruleReferencedEntity Email
 		propertyScope: specific
 		ruleReferencedProperty Subject
@@ -21,7 +23,13 @@ rule EmailCriticality
 		ruleReferencedProperty AssumedPermitDate
 		ruleReferencedProperty FixedPriceEur
 		ruleReferencedProperty OverrunApprovalThresholdPercent
+	ruleReferencedEntity ProjectManager
+		propertyScope: specific
+		ruleReferencedProperty Name
+		ruleReferencedProperty Email
 	ruleReferencedRelationship 'Email About Project'
 	ruleReferencedRelationship 'Document Of Project'
+	ruleReferencedRelationship 'Project Managed By'
 	annotation Category = Triage
+	annotation Owner = Project management
 	annotation Source = Specification, offer and contract

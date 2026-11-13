@@ -1,0 +1,184 @@
+{
+  "schema_version": 3,
+  "name": "project_planning_business_checks",
+  "language": "de",
+  "evaluation_notes": [
+    "Five synthetic held-out inputs: two emails, two questions and one explicitly fictional news article. These are evaluation inputs, not new source records.",
+    "Send only query to each pinned agent in a fresh conversation. Never send context, ground_truth, criteria or critical_errors to the agent.",
+    "Assess every mandatory criterion manually as correct, incorrect or missing, with answer evidence. Check citations and additional unsupported claims separately.",
+    "A case passes only when every mandatory criterion is correct, source support is correct, no additional incorrect claims exist and every critical error is absent. Unreviewed cases are pending, not passed.",
+    "Numeric criteria specify exact reference values; equivalent number, date and language formats are acceptable. Do not require verbatim reference wording.",
+    "Compare shared document knowledge separately from ontology-only rules. The data-only baseline intentionally does not receive ontology policies.",
+    "The article tests cautious reasoning, not automatic application of email-only triage rules. No browsing or current-news verification is needed.",
+    "Five cases are diagnostic, not a statistically representative quality estimate. Repeat with new run directories to assess variability.",
+    "The previous ten-case dataset is archived under evaluations/archive. Historical run files remain unchanged."
+  ],
+  "source_documents": [
+    {
+      "path": "data/pdfs/P-100_offer.pdf",
+      "sha256": "c1f4f8d6541ba94242a65eaf12faf81b3303ad954f74a9a0c5d1951acd765c1a"
+    },
+    {
+      "path": "data/pdfs/P-100_specification.pdf",
+      "sha256": "e6529f48bcc512ae2b9ec501357ac35a9d39f7d17b6c331f98b799c0bfb3e1b9"
+    },
+    {
+      "path": "data/pdfs/P-100_contract.pdf",
+      "sha256": "bab88027d16e74179f7a8128e582a0386262b81dcb3a2e7aa957f9df85e4feed"
+    },
+    {
+      "path": "data/pdfs/P-200_contract.pdf",
+      "sha256": "2c51a2622c10f106fe5877b6b4a2ab50bcf4b9cd0edf29ab9f4bf2c50cafbad5"
+    },
+    {
+      "path": "data/projects.csv",
+      "sha256": "29f8ac124969fce98949cff423e2c7244abf08985a60b904e10ff4e29481d7f6"
+    },
+    {
+      "path": "data/project_managers.csv",
+      "sha256": "b67edbc47d77f6149f9ab8fb90779b75d19d4c1d874f49f3e36ceaee8f6dd68f"
+    },
+    {
+      "path": "ontology/rules/EmailCriticality.tmdl",
+      "sha256": "934a47a3da9fc54401ce5b3a1f00c45cceb7b03ed9b613af0cfec462b96f6604"
+    },
+    {
+      "path": "ontology/rules/ChangeRequestPolicy.tmdl",
+      "sha256": "e6e84e1beb68f61f8564aae1648fef713f55f438993f90bcd7f0d23f21972d08"
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "B-001",
+      "category": "email",
+      "title": "Permit assumption versus remaining buffer",
+      "query": "Bewerte diese neue E-Mail anhand unserer Projektunterlagen und geltenden internen Regeln. Nenne Projekt-ID und -Name, verantwortliche Projektleitung mit E-Mail-Adresse, Einstufung, Begruendung, Handlungsbedarf und eine erforderliche Eskalationsfrist. Trenne belegte Folgen von Risiken.\nEingang: 2026-11-16. Projekt: P-100. Absender: client@nordbau.example. Betreff: Genehmigung und Terminpuffer.\nText: Die Baugenehmigung kommt voraussichtlich erst im Februar. Wir gehen davon aus, dass Sie den vereinbarten Fertigstellungstermin trotzdem einhalten. Nach unserer Einschaetzung ist noch ausreichend Puffer vorhanden.",
+      "context": "[data/projects.csv, ProjectId=P-100]\nP-100,Office Building Hamburg,Nordbau Real Estate Ltd,M-1,2027-01-01,2027-12-15,2400000\n\n[data/project_managers.csv, ManagerId=M-1]\nM-1,Anna Becker,anna.becker@example.com\n\n[data/pdfs/P-100_offer.pdf, page 1]\nAssumption: The building permit is issued by 2027-01-31.\n\n[data/pdfs/P-100_specification.pdf, page 1]\nCompletion: 2027-12-15. The date is binding because the main tenant moves in on 2028-01-01.\n\n[data/pdfs/P-100_contract.pdf, page 1]\nContractual penalty: 0.2 % of the contract value per working day of delay, capped at 5 %.\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it critical if it changes or threatens the completion date, the budget or the scope of the project, or contradicts an assumption or clause of the specification, offer or contract, even when the remaining schedule buffer would absorb it.\nPlace a date without a year in the next occurrence after the date of the email.\nEvery critical email must be escalated to the project manager of its project within 1 working day.\nDo not claim that a notification has been sent unless the notification tool confirms success.",
+      "ground_truth": "P-100 ist Office Building Hamburg. Projektleiterin ist Anna Becker, anna.becker@example.com. Februar ist nach dem Eingang am 16.11.2026 als Februar 2027 zu verstehen und liegt nach der Angebotsannahme 31.01.2027. Nach EmailCriticality ist der Widerspruch bereits kritisch, auch bei ausreichendem Puffer. Terminfolgen sind zu pruefen; weder eine bereits eingetretene Fertigstellungsverzoegerung noch eine bereits faellige Vertragsstrafe sind belegt. Nach derselben Regel innerhalb eines Arbeitstags an Anna Becker eskalieren. Ein Ruecktrittsrecht oder eine Acht-Wochen-Frist ersetzt diese interne Eskalation nicht. Keine bereits versandte Benachrichtigung ohne bestaetigten Tool-Erfolg behaupten.",
+      "criteria": [
+        {"id": "project", "dimension": "shared_data", "description": "P-100 und Office Building Hamburg korrekt zuordnen."},
+        {"id": "manager", "dimension": "shared_data", "description": "Anna Becker und anna.becker@example.com nennen."},
+        {"id": "year", "dimension": "ontology_policy", "description": "Februar als Februar 2027 aufloesen."},
+        {"id": "conflict", "dimension": "shared_data", "description": "Widerspruch zur Angebotsannahme 31.01.2027 erkennen und Terminfolgen zur Pruefung benennen."},
+        {"id": "rating", "dimension": "ontology_policy", "description": "Kritisch einstufen, auch wenn ausreichender Puffer behauptet wird."},
+        {"id": "escalation", "dimension": "ontology_policy", "description": "Innerhalb eines Arbeitstags an Anna Becker eskalieren."},
+        {"id": "uncertainty", "dimension": "uncertainty", "description": "Verzoegerung der Genehmigung von unbewiesener Fertigstellungsverzoegerung und faelliger Vertragsstrafe trennen."}
+      ],
+      "critical_errors": [
+        {"id": "wrong_deadline", "description": "Eine andere verbindliche Eskalationsfrist als einen Arbeitstag nennen, insbesondere acht Wochen oder bis zum Fertigstellungstermin."},
+        {"id": "buffer_override", "description": "Wegen behauptetem Puffer die ausdrueckliche Widerspruchsregel ausser Kraft setzen."},
+        {"id": "invented_penalty", "description": "Bereits faellige Vertragsstrafe oder gesicherte Fertigstellungsverzoegerung behaupten."},
+        {"id": "invented_notification", "description": "Eine bereits versandte Benachrichtigung oder ausgefuehrte Eskalation ohne bestaetigten Tool-Erfolg behaupten."}
+      ],
+      "sources": [
+        {"path": "data/projects.csv", "row_id": "P-100"},
+        {"path": "data/project_managers.csv", "row_id": "M-1"},
+        {"path": "data/pdfs/P-100_offer.pdf", "page": 1},
+        {"path": "data/pdfs/P-100_specification.pdf", "page": 1},
+        {"path": "data/pdfs/P-100_contract.pdf", "page": 1},
+        {"path": "ontology/rules/EmailCriticality.tmdl"}
+      ]
+    },
+    {
+      "id": "B-002",
+      "category": "email",
+      "title": "Office closure before the project starts",
+      "query": "Bewerte diese neue E-Mail anhand unserer Projektunterlagen und geltenden internen Regeln. Nenne Projekt-ID und -Name, verantwortliche Projektleitung mit E-Mail-Adresse, den aufgeloesten Zeitraum, Einstufung, Begruendung und eine eventuell erforderliche Eskalation.\nEingang: 2026-11-16. Projekt: P-200. Absender: client@isar.example. Betreff: Allgemeine Bueroschliessung.\nText: Unser Buero bleibt vom 20. Dezember bis einschliesslich 3. Januar geschlossen. Dies ist eine allgemeine Information; Aenderungen an den vereinbarten Leistungen oder Terminen sind damit nicht verbunden.",
+      "context": "[data/projects.csv, ProjectId=P-200]\nP-200,Residential Complex Munich,Isar Housing Corp,M-2,2027-03-01,2028-06-30,5000000\n\n[data/project_managers.csv, ManagerId=M-2]\nM-2,Ben Fischer,ben.fischer@example.com\n\n[ontology/rules/EmailCriticality.tmdl]\nRate it not critical if it is routine information without effect on schedule, cost, scope or contract, for example a status meeting, a request for an existing document, or an absence that lies completely outside the term of the project.\nPlace a date without a year in the next occurrence after the date of the email.\nEmails rated watch or not critical need no escalation.",
+      "ground_truth": "P-200 ist Residential Complex Munich; Projektleiter ist Ben Fischer, ben.fischer@example.com. Die zusammenhaengende Schliessung dauert vom 20.12.2026 bis einschliesslich 03.01.2027. Sie liegt vollstaendig vor dem Projektstart 01.03.2027. Ohne weitere Hinweise sind keine Projektfolgen belegt. Nach EmailCriticality nicht kritisch und keine Eskalation erforderlich. Keine Verschiebung von Projektterminen erfinden.",
+      "criteria": [
+        {"id": "project", "dimension": "shared_data", "description": "P-200 und Residential Complex Munich korrekt zuordnen."},
+        {"id": "manager", "dimension": "shared_data", "description": "Ben Fischer und ben.fischer@example.com nennen."},
+        {"id": "period", "dimension": "ontology_policy", "description": "Zusammenhaengenden Zeitraum 20.12.2026 bis 03.01.2027 einschliesslich nennen."},
+        {"id": "comparison", "dimension": "shared_data", "description": "Schliessung liegt vollstaendig vor Projektstart 01.03.2027."},
+        {"id": "rating", "dimension": "ontology_policy", "description": "Auf Basis der Angaben nicht kritisch einstufen."},
+        {"id": "escalation", "dimension": "ontology_policy", "description": "Keine Eskalation erforderlich."},
+        {"id": "uncertainty", "dimension": "uncertainty", "description": "Keine unbelegten Terminfolgen behaupten."}
+      ],
+      "critical_errors": [
+        {"id": "invented_delay", "description": "Eine feststehende Projektverzoegerung oder Terminverschiebung aus der Schliessung ableiten."},
+        {"id": "false_escalation", "description": "Die Routineinformation ohne weitere Belege als zwingend zu eskalierenden kritischen Fall behandeln."}
+      ],
+      "sources": [
+        {"path": "data/projects.csv", "row_id": "P-200"},
+        {"path": "data/project_managers.csv", "row_id": "M-2"},
+        {"path": "ontology/rules/EmailCriticality.tmdl"}
+      ]
+    },
+    {
+      "id": "B-003",
+      "category": "question",
+      "title": "Exactly ten percent versus more than ten percent",
+      "query": "Fuer P-200 gibt es zwei alternative Kostenprognosen: A: 5.500.000 EUR und B: 5.550.000 EUR. Berechne fuer jede Prognose die Budgetabweichung in EUR und Prozent gegen das Vertragsbudget. Welche Prognose loest nach der Vertragsklausel eine schriftliche Zustimmung aus, und von wem? Trenne erforderliche von bereits erteilter Zustimmung. Belege die Klausel.",
+      "context": "[data/pdfs/P-200_contract.pdf, page 1]\nFramework Contract - Residential Complex Munich (P-200)\nParties: Demo Construction AG and Isar Housing Corp\nBudget: EUR 5,000,000. An overrun of more than 10 % requires written approval by the client.",
+      "ground_truth": "Vertragsbudget 5.000.000 EUR. A liegt 500.000 EUR bzw. genau 10 Prozent darueber. B liegt 550.000 EUR bzw. 11 Prozent darueber. Die Klausel verlangt bei mehr als 10 Prozent schriftliche Zustimmung des Auftraggebers Isar Housing Corp: fuer B ja, fuer A wird sie durch diese Klausel noch nicht ausgeloest. Eine schon erteilte Zustimmung ist nicht belegt; aus der Klausel folgt keine pauschale Genehmigungsfreiheit unter anderen Regelungen.",
+      "criteria": [
+        {"id": "budget", "dimension": "shared_data", "description": "Vertragsbudget 5.000.000 EUR verwenden.", "expected_number": 5000000, "unit": "EUR"},
+        {"id": "a_eur", "dimension": "shared_data", "description": "Prognose A: 500.000 EUR Ueberschreitung.", "expected_number": 500000, "unit": "EUR"},
+        {"id": "a_percent", "dimension": "shared_data", "description": "Prognose A: genau 10 Prozent.", "expected_number": 10, "unit": "percent"},
+        {"id": "b_eur", "dimension": "shared_data", "description": "Prognose B: 550.000 EUR Ueberschreitung.", "expected_number": 550000, "unit": "EUR"},
+        {"id": "b_percent", "dimension": "shared_data", "description": "Prognose B: 11 Prozent.", "expected_number": 11, "unit": "percent"},
+        {"id": "boundary", "dimension": "shared_data", "description": "Mehr als 10 Prozent strikt auslegen: B loest Klausel aus, A nicht."},
+        {"id": "approval", "dimension": "shared_data", "description": "Schriftliche Zustimmung von Auftraggeber Isar Housing Corp fuer B erforderlich."},
+        {"id": "uncertainty", "dimension": "uncertainty", "description": "Keine bereits erteilte Zustimmung oder pauschale Genehmigungsfreiheit behaupten."}
+      ],
+      "critical_errors": [
+        {"id": "wrong_boundary", "description": "Genau 10 Prozent aufgrund der Mehr-als-10-Prozent-Klausel als zustimmungspflichtig bewerten oder B davon ausnehmen."},
+        {"id": "granted_approval", "description": "Eine bereits erteilte schriftliche Zustimmung erfinden."}
+      ],
+      "sources": [{"path": "data/pdfs/P-200_contract.pdf", "page": 1}]
+    },
+    {
+      "id": "B-004",
+      "category": "question",
+      "title": "Additional scope and estimated effort",
+      "query": "Fuer P-100 wird eine zusaetzliche Leistung angefragt, die nachweislich ausserhalb der vereinbarten Spezifikation liegt. Der Kunde haelt sie fuer durch den Festpreis abgedeckt. Der geschaetzte Aufwand betraegt 80 Stunden. Wie ist die Forderung nach unseren Unterlagen und internen Regeln einzuordnen, und welcher Betrag ergibt sich nach dem angebotenen Stundensatz? Trenne Schaetzung, Beauftragung und endgueltigen Preis. Belege die Einordnung.",
+      "context": "[data/pdfs/P-100_offer.pdf, page 1]\nFixed price: EUR 2,400,000 net.\nChanges outside the specification are charged by effort at EUR 85 per hour.\n\n[ontology/rules/ChangeRequestPolicy.tmdl]\nstatement: A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price.",
+      "ground_truth": "Die ausdruecklich ausserhalb der Spezifikation liegende Kundenforderung ist ein Change Request und nicht automatisch durch den Festpreis abgedeckt. Laut Angebot und ChangeRequestPolicy separat nach Aufwand kalkulieren bzw. abrechnen. Bei geschaetzten 80 Stunden und 85 EUR pro Stunde ergeben sich 6.800 EUR. Das ist eine Aufwandsschaetzung, keine belegte Beauftragung, Freigabe, bereits entstandene Forderung oder endgueltiger Festpreis.",
+      "criteria": [
+        {"id": "classification", "dimension": "ontology_policy", "description": "Als Change Request wegen Leistung ausserhalb der Spezifikation einordnen."},
+        {"id": "separate_charge", "dimension": "shared_data", "description": "Nicht im bestehenden Festpreis absorbieren, sondern separat nach Aufwand berechnen."},
+        {"id": "rate", "dimension": "shared_data", "description": "85 EUR pro Stunde aus dem Angebot verwenden.", "expected_number": 85, "unit": "EUR/hour"},
+        {"id": "estimate", "dimension": "shared_data", "description": "80 Stunden mal 85 EUR ergeben 6.800 EUR.", "expected_number": 6800, "unit": "EUR"},
+        {"id": "uncertainty", "dimension": "uncertainty", "description": "6.800 EUR als Schaetzung kennzeichnen; Beauftragung und endgueltiger Preis sind nicht belegt."}
+      ],
+      "critical_errors": [
+        {"id": "absorbed_scope", "description": "Die ausdruecklich zusaetzliche Leistung ohne separate Verguetung als durch den Festpreis gedeckt darstellen."},
+        {"id": "invented_order", "description": "Eine erteilte Beauftragung, bereits faellige Zahlung oder einen verbindlichen endgueltigen Preis behaupten."}
+      ],
+      "sources": [
+        {"path": "data/pdfs/P-100_offer.pdf", "page": 1},
+        {"path": "ontology/rules/ChangeRequestPolicy.tmdl"}
+      ]
+    },
+    {
+      "id": "B-005",
+      "category": "news_article",
+      "title": "Unconfirmed regional supply risk",
+      "query": "Analysiere den folgenden ausdruecklich fiktiven Nachrichtenartikel als Testszenario, nicht als verifizierte Nachricht. Welche unserer Projekte kommen als Pruefkandidaten infrage und warum? Trenne belegte Angaben, moegliche Risiken und offene Fragen. Nenne die verantwortliche Projektleitung fuer die weitere Klaerung und die Informationen, die vor einer belastbaren Bewertung fehlen. Erfinde keine zwingenden Fristen oder Projektfolgen.\nFiktiver Artikel vom 10.05.2027: Ein Branchenverband berichtet ueber moegliche Lieferengpaesse bei Baustoffen in Bayern im kommenden Sommer. Konkrete Lieferanten, Baustellen, Materialien und Verzoegerungsdauern sind noch nicht bekannt.",
+      "context": "[data/projects.csv, ProjectId=P-200]\nP-200,Residential Complex Munich,Isar Housing Corp,M-2,2027-03-01,2028-06-30,5000000\n\n[data/projects.csv, ProjectId=P-100]\nP-100,Office Building Hamburg,Nordbau Real Estate Ltd,M-1,2027-01-01,2027-12-15,2400000\n\n[data/project_managers.csv, ManagerId=M-2]\nM-2,Ben Fischer,ben.fischer@example.com\n\n[ontology/rules/EmailCriticality.tmdl]\nstatement: Every incoming email must be rated critical, watch or not critical by comparing it with its project and the documents of that project.\nEvery critical email must be escalated to the project manager of its project within 1 working day.",
+      "ground_truth": "Der Text ist ein fiktives Testszenario. P-200, Residential Complex Munich, ist wegen Standort Muenchen in Bayern und Laufzeit 01.03.2027 bis 30.06.2028 einschliesslich Sommer 2027 ein Pruefkandidat. Ben Fischer, ben.fischer@example.com, ist die verantwortliche Projektleitung. Eine tatsaechliche Betroffenheit ist nicht belegt. P-100 in Hamburg ist durch die regionale Meldung nicht direkt als betroffen belegt; indirekte Lieferketteneffekte sind weder bewiesen noch ausgeschlossen. Zu klaeren sind Materialien/Gewerke, Lieferanten und bestaetigte Liefertermine, betroffene Aufgaben und deren Puffer bzw. Abhaengigkeiten sowie konkrete Kostenfolgen. Keine bestimmten Verzoegerungen, Mehrkosten oder Vertragsstrafen behaupten. Die bestehenden Triage- und Ein-Arbeitstag-Eskalationsregeln gelten ausdruecklich fuer E-Mails; eine analoge Empfehlung ist moeglich, aber keine belegte verbindliche Artikelfrist.",
+      "criteria": [
+        {"id": "candidate", "dimension": "shared_data", "description": "P-200 und Residential Complex Munich als Pruefkandidat wegen Muenchen/Bayern nennen."},
+        {"id": "overlap", "dimension": "shared_data", "description": "Sommer 2027 liegt innerhalb der Projektlaufzeit 01.03.2027 bis 30.06.2028."},
+        {"id": "manager", "dimension": "shared_data", "description": "Ben Fischer und ben.fischer@example.com fuer die Klaerung nennen."},
+        {"id": "uncertainty", "dimension": "uncertainty", "description": "Fiktives Szenario und potenzielle Betroffenheit von bestaetigter Projektfolge trennen."},
+        {"id": "other_project", "dimension": "uncertainty", "description": "P-100 in Hamburg nicht als direkt bestaetigt betroffen darstellen und indirekte Folgen nicht sicher ausschliessen."},
+        {"id": "investigation", "dimension": "uncertainty", "description": "Materialien/Gewerke, Lieferanten/Liefertermine, betroffene Aufgaben/Puffer/Abhaengigkeiten und Kostenfolgen zur Klaerung nennen."},
+        {"id": "policy_scope", "dimension": "ontology_policy", "description": "Keine verbindliche Artikelfrist aus der E-Mail-Regel behaupten; Empfehlungen klar von Vorgaben trennen."}
+      ],
+      "critical_errors": [
+        {"id": "invented_impact", "description": "Konkrete Lieferanten, Lieferverzoegerungen, Mehrkosten oder Vertragsstrafen ohne Beleg behaupten."},
+        {"id": "false_certainty", "description": "P-200 als sicher betroffen oder P-100 als sicher von allen indirekten Folgen ausgeschlossen darstellen."},
+        {"id": "policy_overreach", "description": "Eine verbindliche Ein-Arbeitstag-Frist fuer Nachrichtenartikel als bestehende interne Regel ausgeben."},
+        {"id": "real_news", "description": "Den ausdruecklich fiktiven Artikel als verifiziertes reales Ereignis behandeln."}
+      ],
+      "sources": [
+        {"path": "data/projects.csv", "row_id": "P-200"},
+        {"path": "data/projects.csv", "row_id": "P-100"},
+        {"path": "data/project_managers.csv", "row_id": "M-2"},
+        {"path": "ontology/rules/EmailCriticality.tmdl"}
+      ]
+    }
+  ]
+}

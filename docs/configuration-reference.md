@@ -47,7 +47,6 @@ Workspace `ProjectPlanning` (`66d9c2b2-d35e-4555-9e74-926164ce584c`).
 | Semantic model, model view (tables, relationships, measures, TMDL view) | same | [Model view](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/modeling/22fb9927-ac28-4092-80c0-0f3d7a56a156/modelView?experience=fabric-developer) |
 | Ontology `ProjectPlanning` (entity types, relationships, rules) | `8750de7f-d46f-4dd4-84f4-a7e31f68ff24` | [ProjectPlanning](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24?experience=fabric-developer) |
 | Rule `EmailCriticality` | lineage tag `715b2ef6-b7f8-5506-a153-11dcf03bf6a2` | [Rule](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24/rules/715b2ef6-b7f8-5506-a153-11dcf03bf6a2?experience=fabric-developer) |
-| Rule `EscalationPolicy` | lineage tag `d58c9bff-6a26-5b35-ae9e-ec92b75101e4` | [Rule](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24/rules/d58c9bff-6a26-5b35-ae9e-ec92b75101e4?experience=fabric-developer) |
 | Rule `ChangeRequestPolicy` | lineage tag `3f5a599b-c690-5858-b1a6-bdccc2f94d73` | [Rule](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24/rules/3f5a599b-c690-5858-b1a6-bdccc2f94d73?experience=fabric-developer) |
 
 The rule links use the `lineageTag` from our rule files as the last path segment. The URL of `ChangeRequestPolicy` is the one the portal showed, and the other two follow the same pattern. Entity types and relationships have no deep link that I verified. Open the ontology and select the entity type by name.
@@ -295,7 +294,7 @@ Why it exists: the ontology endpoint calculated inexactly when the ontology was 
 
 ### Tables
 
-All six tables use the same partition form: `mode: directLake`, `entityName`, `schemaName: dbo`, `expressionSource: DatabaseQuery`. That is Direct Lake on the SQL analytics endpoint. Microsoft separates that from "Direct Lake on OneLake". With the endpoint form, the endpoint is used for discovery and permission checks, and queries can fall back to DirectQuery in some cases, such as views or SQL row-level security (see the comparison table in the [Direct Lake overview](https://learn.microsoft.com/fabric/fundamentals/direct-lake-overview)). Our tables are plain Delta tables without security, so no fallback is expected, and we did not test it.
+All ten tables use the same partition form: `mode: directLake`, `entityName`, `schemaName: dbo`, `expressionSource: DatabaseQuery`. That is Direct Lake on the SQL analytics endpoint. Microsoft separates that from "Direct Lake on OneLake". With the endpoint form, the endpoint is used for discovery and permission checks, and queries can fall back to DirectQuery in some cases, such as views or SQL row-level security (see the comparison table in the [Direct Lake overview](https://learn.microsoft.com/fabric/fundamentals/direct-lake-overview)). Our tables are plain Delta tables without security, so no fallback is expected, and we did not test it.
 
 | Table | Key | Columns | Measures |
 |-------|-----|---------|----------|
@@ -305,6 +304,10 @@ All six tables use the same partition form: `mode: directLake`, `entityName`, `s
 | `emails` | `MailId` | `ProjectId`, `Sender`, `Subject`, `Body`, `ReceivedAt` | none |
 | `project_managers` | `ManagerId` | `Name`, `Email` | none |
 | `task_dependencies` | none | `TaskId`, `PredecessorId` | none |
+| `suppliers` | `SupplierId` | `Name` | none |
+| `materials` | `MaterialId` | `Name`, `Unit` | none |
+| `material_deliveries` | `DeliveryId` | `SupplierId`, `MaterialId`, `TaskId`, `Quantity`, `PlannedDeliveryDate`, `Status` | none |
+| `supplier_materials` | composite supplier/material pair | `SupplierId`, `MaterialId` | none |
 
 Dates are `dateTime`, amounts are `double`, everything else `string`, and all columns use `summarizeBy: none`, so nothing is summed by accident. The amounts are `double` on purpose: the ontology documentation says that the `Decimal` type returns null for semantic-model bindings.
 
@@ -329,6 +332,11 @@ Each measure has a `///` description that says what it is and what it is not. Do
 | `rel_task_of_project` | `tasks.ProjectId` | `projects.ProjectId` | yes |
 | `rel_dependency_task` | `task_dependencies.TaskId` | `tasks.TaskId` | yes |
 | `rel_dependency_predecessor` | `task_dependencies.PredecessorId` | `tasks.TaskId` | no |
+| `rel_delivery_from_supplier` | `material_deliveries.SupplierId` | `suppliers.SupplierId` | yes |
+| `rel_delivery_of_material` | `material_deliveries.MaterialId` | `materials.MaterialId` | yes |
+| `rel_delivery_for_task` | `material_deliveries.TaskId` | `tasks.TaskId` | yes |
+| `rel_portfolio_supplier` | `supplier_materials.SupplierId` | `suppliers.SupplierId` | yes |
+| `rel_portfolio_material` | `supplier_materials.MaterialId` | `materials.MaterialId` | yes |
 
 Two relationships join the same pair of tables, `task_dependencies` and `tasks`. A model allows only one active path, so the predecessor relationship is inactive. Docs: [Relationships](https://learn.microsoft.com/power-bi/transform-model/desktop-relationships-understand), [create and manage relationships](https://learn.microsoft.com/power-bi/transform-model/desktop-create-and-manage-relationships).
 
@@ -359,9 +367,9 @@ Docs: [Ontology overview](https://learn.microsoft.com/fabric/iq/ontology/overvie
 |------|---------|
 | [.platform](../ontology/.platform) | Item type `Ontology`, display name `ProjectPlanning`. `setup.py` reads the name from here |
 | [database.tmdl](../ontology/database.tmdl) | `compatibilityLevel: 1000000` |
-| [model.tmdl](../ontology/model.tmdl) | Lists the tables, five entities, the namespace and three rules |
+| [model.tmdl](../ontology/model.tmdl) | Lists ten tables, eight entities, the namespace and three rules |
 | [namespaces/default.tmdl](../ontology/namespaces/default.tmdl) | The `default` namespace |
-| [relationships.tmdl](../ontology/relationships.tmdl) | Six relationships between tables, the same as in the semantic model, but without the `isActive: false` flag |
+| [relationships.tmdl](../ontology/relationships.tmdl) | Eleven relationships between tables, the same as in the semantic model, but without the `isActive: false` flag |
 
 ### The binding to the semantic model (undocumented path)
 
@@ -369,7 +377,7 @@ Files: [expressions.tmdl](../ontology/expressions.tmdl) and [tables/*.tmdl](../o
 
 | Setting | Value | Meaning |
 |---------|-------|---------|
-| Expression name | `SemanticModelSource` | Shared local name used by all six partitions and four external measures; the source connection is in its expression body |
+| Expression name | `SemanticModelSource` | Shared local name used by all ten partitions and four external measures; the source connection is in its expression body |
 | Expression body | `AnalysisServices.Database("powerbi://api.powerbi.com/v1.0/myorg/{workspaceName}", "{modelName}")`, then the cube `Model` | Opens the semantic model through its Power BI address |
 | Partition `mode` | `directQuery` | The semantic model is queried live with DAX. The TMDL reference documents only `directLake` |
 | Partition source | `entityName`, `expressionSource` set to the expression, no `schemaName` | Points a table to a table of the model |
@@ -402,8 +410,11 @@ Files: [entities/*.tmdl](../ontology/entities). Each entity has a description (`
 | `ProjectDocument` | `documents` | `DocId` | Document, Contract document | `DocId`, `ProjectId`, `DocType`, `Title`, `Content` and the 12 extracted fields (17 in total) |
 | `Email` | `emails` | `MailId` | Mail, Message | `MailId`, `ProjectId`, `Sender`, `Subject`, `Body`, `ReceivedAt` |
 | `Task` | `tasks` | `TaskId` | Work package, Activity | `TaskId`, `ProjectId`, `Name`, `StartDate`, `EndDate`, `CostEur` |
+| `Supplier` | `suppliers` | `SupplierId` | Vendor, Lieferant | `SupplierId`, `Name` |
+| `Material` | `materials` | `MaterialId` | Building material, Baumaterial | `MaterialId`, `Name`, `Unit` |
+| `MaterialDelivery` | `material_deliveries` | `DeliveryId` | Material delivery, Materiallieferung | `DeliveryId`, `SupplierId`, `MaterialId`, `TaskId`, `Quantity`, `PlannedDeliveryDate`, `Status` |
 
-Keys are strings, as the documentation requires (only string and integer keys). The 39 properties in all entities were checked: same name, same type in every entity.
+Keys are strings, as the documentation requires (only string and integer keys). The entities have 51 properties in total. The supply extension uses `double` for quantity, `dateTime` for the planned delivery date and strings for IDs, names, units and status, matching its backing tables.
 
 Strengths: descriptions and synonyms are the vocabulary that the endpoint uses to map a question to a property. Questions such as "work package" or "mail" resolve to `Task` and `Email`.
 
@@ -420,20 +431,30 @@ File: [entityRelationships.tmdl](../ontology/entityRelationships.tmdl). Docs: [R
 | `Email About Project` | `Email` | `Project` | `rel_email_about_project` |
 | `Task Of Project` | `Task` | `Project` | `rel_task_of_project` |
 | `Task Depends On` | `Task` | `Task` | table `task_dependencies`, `fromRelationship: rel_dependency_task`, `toRelationship: rel_dependency_predecessor` |
+| `Delivery From Supplier` | `MaterialDelivery` | `Supplier` | `rel_delivery_from_supplier` |
+| `Delivery Of Material` | `MaterialDelivery` | `Material` | `rel_delivery_of_material` |
+| `Delivery For Task` | `MaterialDelivery` | `Task` | `rel_delivery_for_task` |
+| `Supplier Offers Material` | `Supplier` | `Material` | table `supplier_materials`, `fromRelationship: rel_portfolio_supplier`, `toRelationship: rel_portfolio_material` |
 
-Names are unique, as the documentation asks (known issue with duplicate names). The last one is a many-to-many relationship through a mapping table, and its description tells the reader to follow it repeatedly to find indirectly affected tasks.
+`Supplier Offers Material` means a recorded assortment entry, not current
+availability. It supports alternative-source lookups without an existing
+project delivery. `SupplyDisruptionPolicy` excludes the disrupted supplier from
+alternatives and requires confirmation of availability, quantity, delivery date,
+price and procurement approval before a switch.
+
+Names are unique, as the documentation asks (known issue with duplicate names). `Task Depends On` is a many-to-many relationship through a mapping table, and its description tells the reader to follow it repeatedly to find indirectly affected tasks.
 
 Strength: relationship descriptions are readable by the endpoint, and the demo answered a "blast radius" question (all tasks hit by a delayed task) correctly. Weakness: following a relationship repeatedly is done by SQL/DAX joins, not by a graph query. The graph experiment showed that the graph is not available with this binding, so very long chains would be slow or incomplete. Our chain has five tasks.
 
 ### Business rules
 
-Files: [rules/*.tmdl](../ontology/rules). Docs: [Create and manage business rules](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-rules). The documentation advises: say what must, must not or should be true, use the names of the ontology, link every entity, property and relationship that the rule depends on, and put rationale in the description. The three rules follow that. Measured: the statement is the part that the endpoint applies. The description is stored and returned (`getDefinition` and `list_ontology_rules`), although the TMDL reference says it is not.
+Files: [rules/*.tmdl](../ontology/rules). Docs: [Create and manage business rules](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-rules). The documentation recommends natural-language requirements, consistent vocabulary, links to concepts the rule explicitly depends on, and rationale in the description. The three rules follow that structure. Linked concepts support discovery, not guaranteed execution. Earlier live tests observed changed answers after statement changes; they do not prove deterministic rule execution.
 
 | Rule | Statement in short | Linked entities and properties | Annotations |
 |------|--------------------|--------------------------------|-------------|
-| `EmailCriticality` | Rate every email critical, watch or not critical. Critical: it changes or threatens the completion date, budget or scope, or contradicts a clause or assumption of the specification, offer or contract, even when the remaining schedule buffer would absorb it. Watch: nothing changes today but it could later, for example a vague wish or an absence inside the project term. Not critical: routine information or an absence completely outside the project term. A date without a year is the next occurrence after the email date | `Email` (Subject, Body, Sender, ReceivedAt), `Project` (StartDate, EndDate, BudgetEur), `ProjectDocument` (DocType, Content, CompletionDate, AssumedPermitDate, FixedPriceEur, OverrunApprovalThresholdPercent), relationships `Email About Project`, `Document Of Project` | `Category = Triage`, `Source = Specification, offer and contract` |
-| `EscalationPolicy` | Every critical email must be escalated to the project manager of its project within 1 working day | `Email`, `ProjectManager` (Name, Email), relationships `Email About Project`, `Project Managed By` | `Category = Escalation`, `Owner = Project management` |
+| `EmailCriticality` | Rate emails against project dates, budget and documents. Threats and document contradictions are critical even with buffer. Resolve missing years and explicitly compare closure periods with project start/end. Escalate critical emails within 1 working day; watch and not-critical emails need no escalation. State evidence, manager and required action; do not claim delivery without tool confirmation | `Email` (Subject, Body, Sender, ReceivedAt), `Project` (StartDate, EndDate, BudgetEur), `ProjectDocument` (DocType, Content, CompletionDate, AssumedPermitDate, FixedPriceEur, OverrunApprovalThresholdPercent), `ProjectManager` (Name, Email), relationships `Email About Project`, `Document Of Project`, `Project Managed By` | `Category = Triage`, `Owner = Project management`, `Source = Specification, offer and contract` |
 | `ChangeRequestPolicy` | A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price | `Email` (Body), `ProjectDocument` (DocType, Content, FixedPriceEur, ChangeRateEurPerHour), relationships `Email About Project`, `Document Of Project` | `Category = Commercial`, `Source = Offer and specification` |
+| `SupplyDisruptionPolicy` | Match supplier and material to outstanding deliveries, check planned delivery dates against an inclusive reported stop interval and separate supply exposure from confirmed downstream effects | `Supplier`, `Material`, `MaterialDelivery`, `Task`, `Project`, `ProjectManager`; delivery, task, dependency and manager relationships | `Category = Procurement`, `Source = Supplier reports and planned material deliveries` |
 
 How the linked properties are written: `ruleReferencedEntity` with `propertyScope: specific` and one `ruleReferencedProperty` line per property, up to ten per entity.
 
@@ -445,13 +466,13 @@ Measured effect of the rewrite of `EmailCriticality` (eight emails, four runs ea
 | New statement, first wording | 29 of 32 (delayed building permit twice rated only "watch") |
 | New statement plus the clause about the schedule buffer | 32 of 32 (two runs of 16) |
 
-Strengths: the three rules are short sentences in the language of the ontology, and each one links what it depends on, which lets a reader find all rules that touch an entity. The ratings are now stable enough for a demo, and a changed rule changes the agent answer without a code change.
+Assessment and escalation now share one statement instead of relying on the selection of a second `EscalationPolicy` rule. Both remaining rules link the concepts they explicitly depend on. Earlier measurements above predate this consolidation and are not validation of the new wording.
 
 Weaknesses:
 
 * The sample is small. The buffer clause was added after one miss, so that email is no longer an independent test. A new set of emails would give a fairer number.
 * A language model applies the rules, so wording and borderline ratings can vary from run to run. The rule gives a decision guide, not a deterministic function.
-* `EscalationPolicy` is a statement for the answer. It does not trigger any action. Nothing sends an email or opens a ticket.
+* The escalation requirement in `EmailCriticality` does not itself execute an action. The current agent has no notification tool, so nothing sends an email or opens a ticket.
 * The rule text refers to "term of the project" and "specification, offer or contract". If the ontology vocabulary changes, the rules must change with it.
 
 ## Agent: Foundry connection and prompt agent
@@ -576,7 +597,7 @@ Weaknesses and risks, in order of importance for a real use:
 | Extraction | The `setup.py` output says "48 of 48 fields match" | Console |
 | Lakehouse tables | Six tables with the row counts 2, 2, 14, 15, 5, 4 | [Lakehouse](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/lakehouses/22d465ee-676f-4ef8-8655-1a7e506d1916?experience=fabric-developer) |
 | Semantic model | Four measures return values, for example `Duration Days` of T-101 is 31 | [Model view](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/modeling/22fb9927-ac28-4092-80c0-0f3d7a56a156/modelView?experience=fabric-developer), DAX query view |
-| Ontology | Five entity types, five relationship types, three rules | [Ontology](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24?experience=fabric-developer) |
+| Ontology | Eight entity types, nine relationship types, three rules | [Ontology](https://app.fabric.microsoft.com/groups/66d9c2b2-d35e-4555-9e74-926164ce584c/ontologies/8750de7f-d46f-4dd4-84f4-a7e31f68ff24?experience=fabric-developer) |
 | Endpoint | `ask_ontology` answers "How many days does task T-101 last?" with 31 | The notebook [use_case.ipynb](../notebooks/use_case.ipynb) |
 | Agent | The test question at the end of `setup.py` returns ratings and managers | Console, Foundry portal |
 | Traces | Spans `invoke_agent`, `execute_tool`, `chat` in `AppDependencies` | [Logs](https://portal.azure.com/#@f71980b2-590a-4de9-90d5-6fbc867da951/resource/subscriptions/98525264-1eb4-493f-983d-16a330caa7f6/resourceGroups/rg-projplan-demo/providers/Microsoft.Insights/components/appi-projplan-axowf3/logs) |

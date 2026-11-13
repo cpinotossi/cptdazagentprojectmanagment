@@ -1,7 +1,7 @@
 /// A change request is work that the customer asks for and that the specification does not contain. Because the offer is a fixed price, such work has to be priced on its own, for example by effort as the offer states. Use this rule when an email asks for something new and claims that it is already covered.
 rule ChangeRequestPolicy
 	lineageTag: 3f5a599b-c690-5858-b1a6-bdccc2f94d73
-	statement: A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price.
+	statement: A customer request outside the specification is a change request. It must be charged separately and must not be absorbed into the fixed price. For effort-based pricing, estimated effort multiplied by the agreed hourly rate gives a cost estimate, not a binding final price. Neither a request nor a cost estimate proves that the work has been commissioned, approved or performed, or that payment is due. State commissioning, approval, actual effort and a final price only when supported by explicit evidence; otherwise preserve their uncertainty.
 	ruleReferencedEntity Email
 		propertyScope: specific
 		ruleReferencedProperty Body

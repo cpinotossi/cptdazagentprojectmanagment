@@ -136,11 +136,11 @@ Sources: [Create entity types](https://learn.microsoft.com/fabric/iq/ontology/ho
 | Metadata can include descriptions, synonyms and custom key-value attributes | Descriptions and synonyms everywhere, key-value attributes only on one rule | Partly, optional |
 | Relationship names must be unique (known issue) | Five distinct names | Followed |
 | Relationship data is in OneLake, a mapping table can carry a many-to-many relationship | The tables are lakehouse tables, `task_dependencies` carries `Task Depends On` | Followed |
-| Rule definitions say what must, must not or should be true | All three do. The statement of `EmailCriticality` now defines critical, watch and not critical, including the term boundary | Followed |
+| Rule definitions say what must, must not or should be true | Both rules do. `EmailCriticality` defines rating criteria, time-period comparison and the required escalation in one statement | Followed |
 | Use the names and business language of the ontology in rules | The rules say "email", "project", "specification, offer or contract". The entities are `Email`, `Project`, `ProjectDocument` with the document types Specification, Offer and Contract | Partly |
-| Link each entity type, property and relationship that the rule explicitly depends on | All three rules link entities, the properties they depend on (`propertyScope: specific`, up to ten per entity) and relationships. `EmailCriticality` also links `Project` | Followed |
+| Link each entity type, property and relationship that the rule explicitly depends on | Both rules link relevant entities, properties (`propertyScope: specific`) and relationships. `EmailCriticality` includes `Project` and `ProjectManager` | Followed |
 | Put rationale and supporting context in the description, not in the definition | The statements hold the rules, the descriptions hold purpose and rationale | Followed |
-| Use additional metadata for category, policy, owner | `EmailCriticality`, `EscalationPolicy` and `ChangeRequestPolicy` carry annotations such as `Category` and `Source` | Followed |
+| Use additional metadata for category, policy, owner | `EmailCriticality` and `ChangeRequestPolicy` carry annotations such as `Category` and `Source`; the separate `EscalationPolicy` has been consolidated into `EmailCriticality` | Followed |
 | Semantic models need Read and Build permission, not Import mode | Direct Lake, the deploying user owns the model | Followed |
 
 The gaps that the audit found are closed, see the measurement below.

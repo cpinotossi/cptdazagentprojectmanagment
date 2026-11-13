@@ -1,0 +1,11 @@
+Offer - Residential Complex Munich (P-200)
+Parties: Demo Construction AG and Isar Housing Corp
+The parties hereby enter into this binding construction contract.
+This signed agreement is effective immediately and is not a quotation.
+The contractor shall perform the works; the client shall pay the agreed budget.
+Budget: EUR 5,000,000. An overrun of more than 10 % requires written approval by the client.
+Term: 2027-03-01 to 2028-06-30.
+Both parties accept these contractual obligations.
+Signed for Demo Construction AG: Demo Contractor
+Signed for Isar Housing Corp: Demo Client
+Revision: notebook-demo-v2.

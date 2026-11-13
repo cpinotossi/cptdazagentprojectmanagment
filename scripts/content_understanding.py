@@ -55,7 +55,7 @@ class ContentUnderstanding:
         self._wait(r)
 
     def analyze_file(self, analyzer_id, path):
-        """Analyzes a local PDF and returns the first content item with fields and markdown."""
+        """Analyzes a local PDF and returns the full result, including routed contents."""
         for _ in range(8):
             r = requests.post(self._url(f"analyzers/{analyzer_id}:analyzeBinary"),
                               headers=self._headers(CONTENT_TYPES[path.suffix.lower()]), data=path.read_bytes())
@@ -64,7 +64,7 @@ class ContentUnderstanding:
             time.sleep(20)  # a deployment that was just updated is briefly unknown
         if not r.ok:
             sys.exit(f"Analyzing {path.name} failed: {r.status_code} {r.text}")
-        return self._wait(r)["result"]["contents"][0]
+        return self._wait(r)["result"]
 
 
 def field_value(field):

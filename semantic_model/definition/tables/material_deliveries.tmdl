@@ -1,0 +1,46 @@
+table material_deliveries
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5103
+
+	column DeliveryId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: DeliveryId
+
+	column SupplierId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: SupplierId
+
+	column MaterialId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: MaterialId
+
+	column TaskId
+		dataType: string
+		summarizeBy: none
+		sourceColumn: TaskId
+
+	column Quantity
+		dataType: double
+		summarizeBy: none
+		sourceColumn: Quantity
+
+	column PlannedDeliveryDate
+		dataType: dateTime
+		formatString: General Date
+		summarizeBy: none
+		sourceColumn: PlannedDeliveryDate
+
+	column Status
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Status
+
+	partition material_deliveries = entity
+		mode: directLake
+		source
+			entityName: material_deliveries
+			schemaName: dbo
+			expressionSource: DatabaseQuery

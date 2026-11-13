@@ -1,3 +1,10 @@
 .venv/
 __pycache__/
 .tools/
+evaluations/baselines/
+evaluations/manual_runs/
+evaluations/notebook_runs/
+evaluations/archive/baselines/
+evaluations/archive/manual_runs/
+evaluations/archive/notebook_runs/
+extraction/outputs/

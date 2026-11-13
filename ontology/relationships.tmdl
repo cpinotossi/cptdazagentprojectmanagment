@@ -21,3 +21,23 @@ relationship rel_dependency_task
 relationship rel_dependency_predecessor
 	fromColumn: task_dependencies.PredecessorId
 	toColumn: tasks.TaskId
+
+relationship rel_delivery_from_supplier
+	fromColumn: material_deliveries.SupplierId
+	toColumn: suppliers.SupplierId
+
+relationship rel_delivery_of_material
+	fromColumn: material_deliveries.MaterialId
+	toColumn: materials.MaterialId
+
+relationship rel_delivery_for_task
+	fromColumn: material_deliveries.TaskId
+	toColumn: tasks.TaskId
+
+relationship rel_portfolio_supplier
+	fromColumn: supplier_materials.SupplierId
+	toColumn: suppliers.SupplierId
+
+relationship rel_portfolio_material
+	fromColumn: supplier_materials.MaterialId
+	toColumn: materials.MaterialId

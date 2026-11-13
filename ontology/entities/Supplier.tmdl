@@ -1,0 +1,23 @@
+/// A company listed as a potential source through Supplier Offers Material, whether or not a project delivery already exists. MaterialDelivery records identify concrete planned or recorded deliveries. Neither an assortment entry nor the absence of a disruption report proves current availability.
+entity Supplier
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5301
+	backingTable: suppliers
+	keyProperty: SupplierId
+	synonym 'Vendor'
+	synonym 'Lieferant'
+
+	/// Unique supplier ID.
+	property SupplierId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5311
+
+		backingConfiguration
+			valueColumn: suppliers.SupplierId
+
+	/// Company name used to match a supplier named in a news report.
+	property Name
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5312
+
+		backingConfiguration
+			valueColumn: suppliers.Name

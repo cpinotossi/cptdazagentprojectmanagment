@@ -22,6 +22,9 @@ param embeddingName string = 'text-embedding-3-small'
 param embeddingVersion string = '1'
 param embeddingCapacity int = 20
 
+@description('Include the disabled Consumption orchestration preparation.')
+param deployLogicApp bool = true
+
 var suffix = take(uniqueString(resourceGroup().id), 6)
 var accountName = 'ai-${baseName}-${suffix}'
 var foundryUserRole = '53ca6127-db72-4b80-b1b0-d745d6d5456d'
@@ -136,6 +139,15 @@ resource deployerFoundryManager 'Microsoft.Authorization/roleAssignments@2022-04
   }
 }
 
+module logicApp 'modules/logic-apps-consumption.bicep' = if (deployLogicApp) {
+  name: 'logic-apps-consumption'
+  params: {
+    baseName: baseName
+    location: location
+    logAnalyticsWorkspaceResourceId: logs.id
+  }
+}
+
 output foundryAccountName string = account.name
 output foundryProjectName string = project.name
 output foundryProjectEndpoint string = 'https://${account.name}.services.ai.azure.com/api/projects/${project.name}'
@@ -143,3 +155,5 @@ output modelDeployment string = model.name
 output embeddingDeployment string = embedding.name
 output fabricCapacityName string = capacity.name
 output logAnalyticsWorkspaceId string = logs.properties.customerId
+output logicAppName string = deployLogicApp ? logicApp.outputs.logicAppName : ''
+output logicAppResourceId string = deployLogicApp ? logicApp.outputs.logicAppResourceId : ''

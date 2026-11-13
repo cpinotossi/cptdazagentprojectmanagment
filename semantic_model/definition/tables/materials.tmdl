@@ -1,0 +1,25 @@
+table materials
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5102
+
+	column MaterialId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: MaterialId
+
+	column Name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Name
+
+	column Unit
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Unit
+
+	partition materials = entity
+		mode: directLake
+		source
+			entityName: materials
+			schemaName: dbo
+			expressionSource: DatabaseQuery

@@ -1,0 +1,56 @@
+table material_deliveries
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5203
+
+	column DeliveryId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5231
+		sourceColumn: DeliveryId
+
+	column SupplierId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5232
+		sourceColumn: SupplierId
+
+	column MaterialId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5233
+		sourceColumn: MaterialId
+
+	column TaskId
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5234
+		sourceColumn: TaskId
+
+	column Quantity
+		dataType: double
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5235
+		sourceColumn: Quantity
+
+	column PlannedDeliveryDate
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5236
+		sourceColumn: PlannedDeliveryDate
+
+	column Status
+		dataType: string
+		lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5237
+		sourceColumn: Status
+
+	partition material_deliveries-partition = entity
+		mode: directQuery
+		source
+			entityName: material_deliveries
+			expressionSource: SemanticModelSource
+
+		annotation ONT_WorkspaceId = 66d9c2b2-d35e-4555-9e74-926164ce584c
+
+		annotation ONT_ItemId = 22fb9927-ac28-4092-80c0-0f3d7a56a156
+
+		annotation ONT_ItemKind = SemanticModel
+
+		annotation ONT_ItemName = ProjectPlanningModel
+
+		annotation ONT_WorkspaceName = ProjectPlanning
+
+		annotation ONT_PinnedAtUtc = 2026-11-13T22:29:15+00:00

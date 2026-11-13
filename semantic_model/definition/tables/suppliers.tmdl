@@ -1,0 +1,20 @@
+table suppliers
+	lineageTag: 456a732c-fef0-48b0-8be8-2f4d0b4d5101
+
+	column SupplierId
+		dataType: string
+		isKey
+		summarizeBy: none
+		sourceColumn: SupplierId
+
+	column Name
+		dataType: string
+		summarizeBy: none
+		sourceColumn: Name
+
+	partition suppliers = entity
+		mode: directLake
+		source
+			entityName: suppliers
+			schemaName: dbo
+			expressionSource: DatabaseQuery
