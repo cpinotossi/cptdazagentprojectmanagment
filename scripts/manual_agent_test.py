@@ -267,10 +267,12 @@ def main() -> None:
         return
     cases, digest = load_dataset(args.dataset)
     if args.command == "export":
-        args.output.write_text("".join(
-            json.dumps({key: case[key] for key in ("id", "query", "context", "ground_truth")},
-                       ensure_ascii=False) + "\n" for case in cases
-        ), encoding="utf-8")
+        from foundry_datasets import jsonl_bytes
+
+        args.output.write_bytes(jsonl_bytes([
+            {key: case[key] for key in ("id", "query", "context", "ground_truth")}
+            for case in cases
+        ]))
         print(f"Exported {len(cases)} cases to {args.output}")
     elif args.command == "summarize":
         report = summarize(args.input_dir, cases, digest, args.agents)

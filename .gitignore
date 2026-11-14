@@ -4,7 +4,10 @@ __pycache__/
 evaluations/baselines/
 evaluations/manual_runs/
 evaluations/notebook_runs/
+evaluations/runs/
+evaluations/releases/
 evaluations/archive/baselines/
 evaluations/archive/manual_runs/
 evaluations/archive/notebook_runs/
+evaluations/archive/runs/
 extraction/outputs/

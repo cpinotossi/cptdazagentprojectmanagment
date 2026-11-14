@@ -12,6 +12,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobClient
 
 from manual_agent_test import load_dataset
+from foundry_datasets import jsonl_bytes
 
 REFERENCE_NAME = "project-planning-business-reference"
 
@@ -66,9 +67,5 @@ def register_evaluation_data(
     suffix = next(iter(names)) if len(names) == 1 else "comparison" if names else "calibration"
     with TemporaryDirectory() as directory:
         path = Path(directory) / "inputs.jsonl"
-        path.write_text(
-            "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n"
-                    for row in sorted(rows, key=lambda row: row["id"])),
-            encoding="utf-8",
-        )
+        path.write_bytes(jsonl_bytes(rows))
         return register_file(project, f"project-planning-business-inputs-{suffix}", path)

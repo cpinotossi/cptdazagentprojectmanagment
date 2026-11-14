@@ -49,7 +49,7 @@ class BusinessEvaluationTests(unittest.TestCase):
         return client
 
     def setUp(self) -> None:
-        self.source = ROOT / "evaluations/runs/evalrun_561e13fcca05413ebdec5422a4cba9ab.json"
+        self.source = ROOT / "tests/fixtures/business/replay_561e13fcca05413ebdec5422a4cba9ab.json"
         self.controls = ROOT / "evaluations/business_judge_controls.json"
         self.dataset = ROOT / "evaluations/archive/business_tests_v2.json"
         self.rows, self.provenance = regression_cases(
@@ -112,7 +112,7 @@ class BusinessEvaluationTests(unittest.TestCase):
 
     def test_historical_answers_cannot_use_the_consolidated_policy_reference(self) -> None:
         active = ROOT / "evaluations/business_tests.json"
-        other = ROOT / "evaluations/runs/evalrun_37a9833521b0411a866a1fb88d56f950.json"
+        other = ROOT / "tests/fixtures/business/replay_37a9833521b0411a866a1fb88d56f950.json"
         with self.assertRaisesRegex(ValueError, "differs from current reference"):
             regression_cases(active, self.source, self.controls)
         with self.assertRaisesRegex(ValueError, "exactly one response for every reference case"):
@@ -169,7 +169,7 @@ class BusinessEvaluationTests(unittest.TestCase):
         client.post.assert_not_called()
 
     def test_comparison_replays_both_agents_and_reuses_calibrated_evaluator(self) -> None:
-        other = ROOT / "evaluations/runs/evalrun_37a9833521b0411a866a1fb88d56f950.json"
+        other = ROOT / "tests/fixtures/business/replay_37a9833521b0411a866a1fb88d56f950.json"
         rows, provenance = comparison_cases(self.dataset, [self.source, other])
         self.assertEqual(len(rows), 10)
         self.assertEqual(len({row["id"] for row in rows}), 10)

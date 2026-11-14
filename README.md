@@ -390,10 +390,20 @@ Their Groundedness scores are not comparable to business-correctness outcomes.
 as a Foundry-compatible projection. Regenerate it after reference changes:
 
 ```bash
-.venv/bin/python scripts/manual_agent_test.py export
+.venv/bin/python scripts/foundry_datasets.py generate
+.venv/bin/python scripts/foundry_datasets.py check
 ```
 
 ### Inspect B-001 in the Bash notebook
+
+The [dataset catalog](evaluations/datasets.json) supports multiple JSON sources
+and versioned JSONL datasets. Generate and commit the JSONL alongside its sources;
+the [Foundry datasets workflow](.github/workflows/foundry-datasets.yml) rejects
+stale exports and supports manual OIDC publication. The same command is available
+in [publish_datasets.ipynb](notebooks/publish_datasets.ipynb).
+See [dataset publication and output policy](docs/foundry-datasets.md) for identity
+prerequisites and compatibility with the existing reference snapshots.
+Notebook outputs intentionally remain in Git; separate run reports do not.
 
 Open [business_b001.ipynb](notebooks/business_b001.ipynb) and select the
 environment's Bash kernel. Code cells use VS Code's `shellscript` language ID.
@@ -580,16 +590,18 @@ Optional CLI modes and automated tests still use
 [business_tests.jsonl](evaluations/business_tests.jsonl),
 [business_judge_controls.json](evaluations/business_judge_controls.json),
 [business_tests_v2.json](evaluations/archive/business_tests_v2.json)
-and the two historical regression fixtures retained in
-[runs/](evaluations/runs/).
+and the two reduced, frozen replay inputs retained in
+[tests/fixtures/business/](tests/fixtures/business/).
 The exact five-case reference before B-006 was added is preserved as
 [business_tests_v3.json](evaluations/archive/business_tests_v3.json). Adding a
 case changes the dataset hash; refresh suite captures before judging with the
 new reference. Historical captures can use their matching archived reference.
 
 Other historical run results, manual captures, baseline snapshots and previous
-notebook runs are preserved under [archive/](evaluations/archive/), grouped by
-their original purpose. Earlier timestamped P-100 judge runs are under
+notebook runs are retained locally under [archive/](evaluations/archive/), grouped
+by their original purpose, but are no longer tracked by Git. Historical CLI
+examples below require those local files; a fresh clone has only the curated
+replay inputs for offline tests. Earlier timestamped P-100 judge runs are under
 [archive/notebook_runs/p100-permit/judges/](evaluations/archive/notebook_runs/p100-permit/judges/).
 Their recorded provenance retains the paths used at capture time. Nothing was
 deleted. Archived generated snapshots and captures remain gitignored.
@@ -619,8 +631,9 @@ The original question remains unchanged. A separate `rubric_query` reference
 packet supplies the original question, context, expected answer and criteria
 only to the evaluator; agent identity is not mapped to the judge.
 
-The [saved trial](evaluations/archive/runs/evalrun_b8f3fbe5241c426e832d9f20cfc2fa00.json)
-contains all ten cloud judgments, per-dimension scores and reasons:
+The local trial report `evalrun_b8f3fbe5241c426e832d9f20cfc2fa00.json`
+contains all ten cloud judgments, per-dimension scores and reasons. It is not
+versioned; the historical summary is:
 
 | Agent | Mean rubric score | Foundry passes |
 | --- | --- | --- |
@@ -761,7 +774,7 @@ The judge still misses omissions and accepts questionable wording: for example,
 Fabric IQ labels the B-004 amount as a final price rather than clearly retaining
 an estimated amount. Its B-005 rejection rationale also misreads the treatment
 of Hamburg. Audit caveats are saved without overriding cloud decisions in the
-[comparison result](evaluations/archive/runs/evalrun_a481c22f36bd4070a70b03d7dfdfaa9a.json).
+local, unversioned report `evalrun_a481c22f36bd4070a70b03d7dfdfaa9a.json`.
 
 The absence-period requirement was first deployed with this consolidation, so
 this run does not isolate the effect of merging the rules. Fabric IQ uses live
@@ -791,7 +804,7 @@ v7 (B-001, B-002) and 1/5 for Basic-Agent v3 (B-003). These raw judgments do not
 establish a ranking: for example, it rejected Basic-Agent B-005 for correctly
 naming Anna Becker as P-100's manager because that fact is missing from the
 curated per-case context, although it exists in both agents' source data.
-The [saved comparison](evaluations/archive/runs/evalrun_f5b1fefb522e47ddb00d14abe6d3a35d.json)
+The local, unversioned report `evalrun_f5b1fefb522e47ddb00d14abe6d3a35d.json`
 retains the cloud decisions, data-parity verification and review caveats.
 
 ```bash

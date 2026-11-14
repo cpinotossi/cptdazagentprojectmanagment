@@ -9,11 +9,17 @@ description: Separate infrastructure validation, approved identity bootstrap and
 |----------|---------|--------------|-------|
 | [Infrastructure CI](../.github/workflows/infra-ci.yml) | Relevant pull requests and pushes to main; manual | None | Compile Bicep and run focused infrastructure tests |
 | [Logic Apps deployment](../.github/workflows/deploy-logic-app.yml) | Manual, main only | OIDC through environment `azure-demo` | Preview or deploy only the Consumption module |
+| [Foundry datasets](../.github/workflows/foundry-datasets.yml) | Relevant pull requests and main pushes validate; manual publication from main | OIDC through separate environment `foundry-demo` for publication only | Validate and publish committed JSONL datasets |
 
 CI does not request an OIDC token or install the application dependencies.
 Actions are pinned to verified commit SHAs. The deployment workflow never invokes
 the full deployment script, Fabric setup, ontology publication or agent updates.
 It preserves the disabled preparation state and verifies it after deployment.
+
+The [Foundry dataset bootstrap](foundry-datasets.md#administrative-identity-bootstrap)
+uses a separate UAMI with Foundry User only at the project scope. Its identity,
+federation, main-only environment and variables have been provisioned; the first
+OIDC upload run still requires publishing the new workflow.
 
 Keep future full-infrastructure and Fabric/agent publication workflows separate.
 Full infrastructure currently contains role assignments and needs a different
