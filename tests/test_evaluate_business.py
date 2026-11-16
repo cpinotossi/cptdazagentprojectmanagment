@@ -556,6 +556,7 @@ class CapturedResponseTests(unittest.TestCase):
             paths = self.captures(directory)
             with patch.object(sys, "argv", [
                 "evaluate_business.py", "--endpoint", "endpoint",
+                "--dataset", str(ROOT / "evaluations/business_tests.json"),
                 "--captured-responses", *map(str, paths), "--case-id", "B-001",
                 "--evaluator-version", "2", "--output-dir", directory,
             ]), patch.object(cli, "AzureCliCredential"), \
@@ -790,7 +791,7 @@ class BusinessEvaluationCliTests(unittest.TestCase):
             project = factory.return_value.__enter__.return_value
             client = project.get_openai_client.return_value.__enter__.return_value
             capture.assert_called_once_with(
-                project, client, "endpoint", ROOT / "evaluations/business_tests.json",
+                project, client, "endpoint", ROOT / "evaluations/generated/business_reference.jsonl",
                 "agent", "7", Path(directory),
             )
             self.assertEqual(project.get_openai_client.call_args.kwargs["max_retries"], 0)
@@ -841,7 +842,7 @@ class BusinessEvaluationCliTests(unittest.TestCase):
                 client = project.get_openai_client.return_value.__enter__.return_value
                 path = Path(directory) / "run-id.json"
                 create.assert_called_once_with(
-                    project, client, "endpoint", ROOT / "evaluations/business_tests.json",
+                    project, client, "endpoint", ROOT / "evaluations/generated/business_reference.jsonl",
                     "agent", "7", "gpt-4.1", None,
                     output_dir=Path(directory), evaluator_kind=kind,
                     comparison_id=None, run_label=None,

@@ -266,7 +266,7 @@ In the test runs the agent called `ask_ontology` for the email questions, and th
 
 ### The agent prompt
 
-The whole prompt is [agent_instructions.txt](../scripts/agent_instructions.txt):
+The whole prompt is [instructions.txt](../agents/fabric-iq/instructions.txt):
 
 ```text
 You are a project planning assistant for construction projects.
@@ -360,7 +360,7 @@ The script signs in through the Azure CLI. Another identity, for example a servi
 | Adjust a business rule | `ontology/rules/<Name>.tmdl` |
 | Add a description or synonym | `///` lines and `synonym` lines in `ontology/entities/` |
 | Add a table | A CSV in `data/`, `ontology/tables/<table>.tmdl`, a `ref table` line in `ontology/model.tmdl`, plus an entity file |
-| Change the role or tool policy of the agent | `scripts/agent_instructions.txt` |
+| Change the role or tool policy of the agent | `agents/fabric-iq/instructions.txt` |
 | Change the model or the capacity size | Parameters in `infra/main.bicep` |
 
 Run `./deploy.sh` after any change.

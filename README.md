@@ -32,6 +32,12 @@ explanation.
 
 ## Contents
 
+Agent-owned sources are grouped in [agents/fabric-iq/](agents/fabric-iq/) and
+[agents/basic/](agents/basic/). Shared setup and release code stays in
+[scripts/](scripts/); each Consumption workflow has its own subfolder under
+[logicapps/](logicapps/), with Azure resources defined centrally in
+[infra/](infra/).
+
 | Path | Purpose |
 |------|---------|
 | `infra/main.bicep` | Foundry account, project, chat and embedding model, Fabric capacity F2, Application Insights for tracing, role assignments |
@@ -49,12 +55,17 @@ explanation.
 | `scripts/manual_agent_test.py` | Direct agent calls and editable human reviews of business correctness, completeness and critical errors, without a Foundry evaluator |
 | `scripts/content_understanding.py` | REST client for Azure Content Understanding, used by `setup.py` to read the terms from the PDFs |
 | `scripts/update_ontology.py` | Uploads only the `ontology/` folder, used after a change and by the notebook to restore a rule |
-| `scripts/agent_instructions.txt` | Short agent prompt: role, tool usage, no invented data |
+| `agents/fabric-iq/config.json` | Foundry release endpoint, model deployment and existing ontology connection |
+| `agents/fabric-iq/instructions.txt` | Short agent prompt: role, tool usage, no invented data |
+| `agents/basic/config.json` and `agents/basic/policy.txt` | Basic agent name, reference agent and static-evidence policy; no captured records |
+| `logicapps/ontology-orchestration/workflow.json` | Consumption workflow definition; infrastructure and hosting stay in Bicep |
 | `data/` | Five small PDFs (including a mislabeled routing counterexample) and CSV files as test data, amounts in EUR |
 | `notebooks/use_case.ipynb` | Bash notebook that plays the use case: an email arrives, is it critical? |
 | `notebooks/request_walkthrough.ipynb` | Bash notebook that follows one email through every layer, with a growing diagram, the configuration, the code and live evidence per chapter |
 | `notebooks/project_synonym_test.ipynb` | Bash notebook with a temporary negative control, then restores the permanent Project synonym `qwert` |
 | `notebooks/business_b001.ipynb` | Detailed B-001 walkthrough with individual requests, instructions and Foundry judgments |
+| `notebooks/business_b002.ipynb` | Detailed B-002 office-closure walkthrough with the same separate agent requests and Foundry judgments |
+| `notebooks/business_b005.ipynb` | Detailed B-005 supplier-news walkthrough, including the direct ontology tool answer and separate Foundry judgments |
 | `notebooks/business_all_tests.ipynb` | Compact six-case comparison with separate fixed-file capture and Foundry judging |
 | `notebooks/import_updates.ipynb` | Bash notebook for editing and updating one demo PDF, with optional independent metadata and CSV imports |
 | `docs/how-it-works.md` | Explanation of the solution for readers who know Foundry but not Fabric or ontologies |
@@ -67,10 +78,14 @@ definition. Fabric content and agent versions are configured separately.
 [setup.py](scripts/setup.py) creates the Fabric content, then calls
 [setup_agent.py](scripts/setup_agent.py) to create the connection and agent through REST and the SDK.
 
-For the separate, not-yet-active Logic Apps orchestration preparation, see
+For the separate, not-yet-active explicit Logic Apps orchestration, see
 [Logic Apps setup and deployment](docs/logic-apps-consumption.md).
 The main Bicep template includes the Consumption module by default. A separate
 module-only deployment can update it without changing Fabric content or agents.
+The workflow matches ontology entities, rewrites the question and calls
+`ask_ontology` with delegated Fabric user authentication supplied per request.
+The existing Foundry Managed Identity handles only rewrite and validation model
+calls. Enable and test this path manually; it does not use direct SQL retrieval.
 
 ## Run
 
@@ -376,18 +391,43 @@ S-200 without an alternatives question. Agent instructions stayed unchanged.
 The six-case notebook run before that description clarification scored 5/6
 for Fabric IQ v8 and 1/6 for Basic v6. Its B-005 results remain native FAILs.
 A focused B-005 run after the clarification correctly named S-200 and qualified
-its availability; the native judge still returned FAIL because the answer did
+its availability; evaluator v6 still returned FAIL because the answer did
 not explicitly mention that the email-only one-working-day rule does not apply.
 The answer invented no such deadline. These judgments were not replaced with
 local grades or changed evaluator criteria.
 
+Evaluator v7 clarifies that a prohibition is satisfied when the prohibited claim
+is absent. An explicit disclaimer is required only if the criterion asks for it;
+positive requirements, such as a critical email's escalation deadline, still apply.
+The unchanged B-005 answer passed its native v7 replay. Both news controls in
+[business_judge_policy_scope_controls.json](evaluations/business_judge_policy_scope_controls.json)
+and all four historical email controls received their expected native judgments:
+no news disclaimer is needed, an invented binding news deadline fails, and a
+missing or contradictory critical-email deadline still fails.
+Rejudging the saved six-case answers in separate v7 runs yielded 6/6 for Fabric IQ
+and 3/6 for Basic. No new agent inference or reference changes were involved.
+These results check the recorded examples, not universal judge reliability.
+
 ### Reference exports
+
+The six-case [business_tests.json](evaluations/business_tests.json) is the single
+maintained business-test source. The [dataset catalog](evaluations/datasets.json)
+generates one canonical reference JSONL plus separate judge calibration inputs.
+Generate and commit the JSONL alongside its source;
+the [Foundry datasets workflow](.github/workflows/foundry-datasets.yml) rejects
+stale exports and supports manual OIDC publication. The same command is available
+in [publish_datasets.ipynb](notebooks/publish_datasets.ipynb).
+See [dataset publication and output policy](docs/foundry-datasets.md) for identity
+prerequisites, portal mappings and reference migration.
+Notebook outputs intentionally remain in Git; separate run reports do not.
 
 The previous ten-case dataset is retained in
 [archive/](evaluations/archive/), and historical evaluation reports remain unchanged.
 Their Groundedness scores are not comparable to business-correctness outcomes.
-[business_tests.jsonl](evaluations/business_tests.jsonl) contains all six cases
-as a Foundry-compatible projection. Regenerate it after reference changes:
+[business_reference.jsonl](evaluations/generated/business_reference.jsonl)
+contains all six cases and their full criteria as portal-compatible JSON strings.
+Notebooks, the portal and Actions use `project-planning-business-reference-cases`.
+Regenerate the export after reference changes:
 
 ```bash
 .venv/bin/python scripts/foundry_datasets.py generate
@@ -395,15 +435,6 @@ as a Foundry-compatible projection. Regenerate it after reference changes:
 ```
 
 ### Inspect B-001 in the Bash notebook
-
-The [dataset catalog](evaluations/datasets.json) supports multiple JSON sources
-and versioned JSONL datasets. Generate and commit the JSONL alongside its sources;
-the [Foundry datasets workflow](.github/workflows/foundry-datasets.yml) rejects
-stale exports and supports manual OIDC publication. The same command is available
-in [publish_datasets.ipynb](notebooks/publish_datasets.ipynb).
-See [dataset publication and output policy](docs/foundry-datasets.md) for identity
-prerequisites and compatibility with the existing reference snapshots.
-Notebook outputs intentionally remain in Git; separate run reports do not.
 
 Open [business_b001.ipynb](notebooks/business_b001.ipynb) and select the
 environment's Bash kernel. Code cells use VS Code's `shellscript` language ID.
@@ -413,6 +444,19 @@ Change the pinned names and versions
 for other deployments. Azure CLI login, Foundry access and an already active
 Fabric capacity are required for live comparison. The notebook never resumes or
 pauses capacity, provisions resources or changes agents.
+
+For B-002, use [business_b002.ipynb](notebooks/business_b002.ipynb). It follows
+the same steps for P-200's office-closure email, including both evaluator
+registrations and the separate Fabric IQ and Basic evaluations. Its fixed output
+directory is `evaluations/notebook_runs/p200-office-closure/`, so it does not
+overwrite B-001 captures or results.
+
+For the supplier-news case, [business_b005.ipynb](notebooks/business_b005.ipynb)
+tests B-005 using the current reference and live ontology, not a reconstruction
+of an earlier failure. It also displays the captured `ask_ontology` answer
+without another inference call. Outputs go to
+`evaluations/notebook_runs/supplier-news/`; evaluator registration and judging
+follow the same steps as B-001 and B-002.
 
 Registration, agent inference and judging are separate cells:
 
@@ -484,7 +528,7 @@ observed with Fabric IQ through Foundry's agent-target-completions path.
 Open [business_all_tests.ipynb](notebooks/business_all_tests.ipynb) with the Bash
 kernel. Seven code cells configure the run, publish and pin its reference, capture each agent's six answers,
 judge each saved set and display the comparison. Agent versions are pinned to
-Fabric IQ v8 and Basic v6; custom evaluator version 6 is reused without creating
+Fabric IQ v8 and Basic v6; custom evaluator version 7 is reused without creating
 another version.
 
 Capture cells use `evaluate_business.py --agent NAME --agent-version VERSION
@@ -510,7 +554,7 @@ capture gate. A successful individual run is not proof of deterministic routing.
 Version 8 preserves version 7's model, temperature and tool configuration.
 
 Judge cells use `--captured-responses DIRECTORY/*.capture.json
---evaluator-version 6 --result-file FILE`, without `--case-id`. This requires
+--evaluator-version 7 --result-file FILE`, without `--case-id`. This requires
 exactly the complete dataset for each supplied agent and rejects duplicate,
 failed or mismatched captures before submitting an evaluation. Supplying
 `--case-id B-001` retains the single-case workflow. Judging never calls the agents.
@@ -523,7 +567,7 @@ All suite files are under the separate, gitignored
   each containing six Foundry decisions
 * `comparison.json`: twelve case decisions with their agent identities and reasons
 * `reference.asset.json`: immutable Foundry reference ID, version and SHA-256
-* `reference.asset.data.json`: verified download of that reference version
+* `reference.asset.data.jsonl`: verified download of that reference version
 
 The final cell displays one row per case with Fabric IQ and Basic PASS/FAIL
 side by side, followed by totals and each run's portal report URL.
@@ -551,13 +595,13 @@ generated answers and full reference fields to Foundry's evaluation API.
 
 The runner uploads the complete judge input as JSONL and submits its registered
 `file_id`, not inline `file_content`. Stable names are
-`project-planning-business-reference` for the reviewed source definition and
+`project-planning-business-reference-cases` for the canonical six-case reference and
 `project-planning-business-inputs-AGENT_NAME` for each agent's generated inputs.
 Versions use the first 16 hexadecimal characters of the file's SHA-256.
 Identical files reuse the existing version; changed answers or references get
 new versions. Neither agent identity nor calibration labels are judge fields.
 
-Both notebooks publish the Git reference through `--publish-reference`, saving
+All business notebooks publish the canonical JSONL through `--publish-reference`, saving
 its pinned ID/version/hash in `reference.asset.json`. Capture and judge steps
 use `--reference-asset` to download that exact Foundry version and verify its
 ID, endpoint and complete SHA-256 before using it. Local files are audit copies,
@@ -576,7 +620,9 @@ the answers being judged.
 
 Foundry supports both inline `file_content` and registered `file_id` sources;
 see [Evaluate existing datasets](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/cloud-evaluation-datasets).
-Historical assets and evaluation entries are not renamed or deleted.
+The one-time consolidation removes superseded reference assets only; technical
+answer/calibration datasets and evaluation reports remain. Old runs referring to
+deleted reference versions cannot be replayed directly.
 
 ### Evaluation file layout
 
@@ -587,7 +633,7 @@ and the fixed files directly under
 [p100-permit/](evaluations/notebook_runs/p100-permit/).
 
 Optional CLI modes and automated tests still use
-[business_tests.jsonl](evaluations/business_tests.jsonl),
+[business_reference.jsonl](evaluations/generated/business_reference.jsonl),
 [business_judge_controls.json](evaluations/business_judge_controls.json),
 [business_tests_v2.json](evaluations/archive/business_tests_v2.json)
 and the two reduced, frozen replay inputs retained in
@@ -907,7 +953,7 @@ The notebook temporarily uploads a derived negative-control definition without
 `qwert`. It tests the normal question and the extended diagnostic question without
 the synonym, uploads the permanent repository definition, and repeats both requests.
 The normal question contains no tool names or retrieval instructions.
-Generic routing rules live in [agent_instructions.txt](scripts/agent_instructions.txt):
+Generic routing rules live in [instructions.txt](agents/fabric-iq/instructions.txt):
 business-data questions use `ask_ontology`; metadata tools are for schema exploration.
 An empty exact-name metadata lookup is not evidence that business records are absent.
 The ontology remains the source of synonym mappings; no mapping is hard-coded in the prompt.

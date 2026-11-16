@@ -6,10 +6,11 @@ param baseName string = 'projplan'
 @description('Region that supports Foundry and the full Fabric stack')
 param location string = resourceGroup().location
 
-@description('Object ID of the deployer (az ad signed-in-user show --query id)')
+@description('Existing human administrator receiving Foundry roles, not the pipeline service principal.')
 param principalId string
 
-@description('UPN of the deployer, becomes Fabric capacity admin')
+@description('UPN of the human Fabric capacity administrator.')
+@secure()
 param fabricAdminUpn string
 
 param fabricSku string = 'F2'
@@ -24,6 +25,9 @@ param embeddingCapacity int = 20
 
 @description('Include the disabled Consumption orchestration preparation.')
 param deployLogicApp bool = true
+
+@description('Nonsecret Consumption runtime bindings. Full infrastructure deployments keep the workflow disabled.')
+param logicAppConfiguration object = {}
 
 var suffix = take(uniqueString(resourceGroup().id), 6)
 var accountName = 'ai-${baseName}-${suffix}'
@@ -145,6 +149,7 @@ module logicApp 'modules/logic-apps-consumption.bicep' = if (deployLogicApp) {
     baseName: baseName
     location: location
     logAnalyticsWorkspaceResourceId: logs.id
+    configuration: union(logicAppConfiguration, { modelDeployment: modelName })
   }
 }
 

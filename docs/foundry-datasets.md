@@ -1,22 +1,26 @@
 ---
-title: Versioned JSON and JSONL datasets
-description: Shared dataset generation and publication from notebooks and GitHub Actions while keeping notebook outputs in Git
+title: Canonical business-test dataset
+description: One six-case reference shared by Foundry Portal, notebooks and GitHub Actions
 ---
 
 ## Source and generated files
 
-Edit JSON sources and commit both those sources and their generated JSONL files.
-The [dataset catalog](../evaluations/datasets.json) declares each Foundry name,
-kind, source files and generated output. Multiple datasets and multiple JSON
-sources per dataset are supported; IDs must be unique within each dataset.
+Edit only [business_tests.json](../evaluations/business_tests.json) for the six
+business cases B-001 through B-006. The
+[dataset catalog](../evaluations/datasets.json) generates one canonical reference
+export. Commit the source and generated JSONL together; never edit the export
+independently. The portal, notebooks and CLI publish the same bytes under
+`project-planning-business-reference-cases`.
 
 | Kind | JSON source | Generated JSONL | Purpose |
 |------|-------------|-----------------|---------|
-| `checks` | [Business cases](../evaluations/business_tests.json) | [Business checks](../evaluations/business_tests.jsonl) | Question/context/expected-answer projection for agent-target evaluations |
-| `cases` | Business cases | [Full reference cases](../evaluations/generated/business_reference.jsonl) | Complete case records, including criteria, critical errors and source declarations |
+| `cases` | [Business cases](../evaluations/business_tests.json) | [Canonical reference](../evaluations/generated/business_reference.jsonl) | All six cases; full criteria and critical errors serialized as JSON strings for portal evaluator compatibility |
 | `calibration` | [Policy-scope controls](../evaluations/business_judge_policy_scope_controls.json) plus the matching business case | [Policy-scope calibration](../evaluations/generated/policy_scope_calibration.jsonl) | Synthetic answers joined to the current reference for evaluator testing |
 
-Calibration `expected_pass` labels remain in the JSON controls, not in the
+Calibration controls and per-agent `project-planning-business-inputs-*` datasets
+are technical judge inputs, not additional business-question catalogs.
+They retain candidate answers and are kept separately from the canonical
+reference. Calibration `expected_pass` labels remain in the JSON controls, not in the
 uploaded judge input. Expected answers, context and criteria are for evaluation;
 send only `query` to the agent. The catalog does not copy business-rule execution
 into the release pipeline. Ontology rules remain authoritative.
@@ -37,7 +41,8 @@ rule-name replacement.
 `generate` performs no cloud operations. `check` fails when any committed JSONL is
 missing or differs byte-for-byte from its JSON sources. Rows are sorted by ID and
 object keys are sorted; UTF-8 output and newline handling are deterministic.
-The existing manual exporter and runtime answer uploads use the same serializer.
+The manual exporter and runtime answer uploads use the same serializer.
+`manual_agent_test.py export` writes the canonical export, not another projection.
 
 For a signed-in developer, the same upload command works in a terminal or Bash
 notebook:
@@ -67,12 +72,35 @@ Open [publish_datasets.ipynb](../notebooks/publish_datasets.ipynb) with the Bash
 kernel. It generates and checks every catalog export. Upload is off by default;
 set `PUBLISH_DATASETS=yes` explicitly to authorize the upload cell.
 
-Existing business notebooks and their saved outputs are not rewritten. Their
-`--publish-reference` path still stores an exact JSON reference snapshot, and
-their existing manifests continue to download and hash-check those bytes.
-The new full-case JSONL is a separate asset, not a replacement for that snapshot
-or a drop-in replacement for a reference manifest. Runtime agent-answer datasets
-still originate from actual captures; the catalog does not fabricate answers.
+Business notebooks use `--publish-reference` to check and publish the same
+canonical JSONL as the GitHub Action. Their manifests pin its ID, version and
+SHA-256. `--reference-asset` downloads those exact bytes into
+`reference.asset.data.jsonl`; capture and judge steps decode the criterion
+strings back into lists. The reference hash always identifies the downloaded
+file, not a reserialized copy.
+
+Existing saved notebook outputs remain historical evidence until rerun. Captures
+from the old JSON reference have a different file hash and cannot be mixed with
+the new JSONL reference. Rerun capture and judge cells together for a new
+comparison. Retained old manifests can still read JSON snapshots if the remote
+asset has not been deleted. Runtime answer datasets originate from real captures;
+the catalog does not fabricate answers.
+
+### Foundry Portal
+
+Select `project-planning-business-reference-cases` with the intended pinned
+version and use `{{item.query}}` as the user prompt. Never send context, expected
+answers or criteria to the agent. For the business-correctness evaluator, map
+`query`, `context`, `ground_truth`, `criteria` and `critical_errors` to their
+`{{item.FIELD}}` values and `response` to `{{sample.output_text}}`.
+
+The legacy `project-planning-business-reference` JSON asset,
+`project-planning-business-checks` projection and the pre-migration version of
+`project-planning-business-reference-cases` are superseded. Their Azure versions
+are removed during the one-time cleanup; historical reports remain, but runs
+referencing deleted assets cannot be replayed directly. Publication never deletes
+assets automatically. Old local archived references and frozen test fixtures
+remain historical inputs, not active sources.
 
 Notebook `.ipynb` files, including execution counts and outputs, remain in Git.
 There is no output-stripping hook or CI check that rejects notebook outputs.
@@ -153,14 +181,16 @@ not provide independent approval. Protect workflow changes and configure
 reviewers where supported before extending this demo to production.
 
 Azure deployment success and configuration readback do not prove GitHub-issued
-OIDC access or dataset upload. The new workflow is still local at this bootstrap
-stage. After reviewing, committing and publishing it through the normal Git
-process, verify the release:
+OIDC access or dataset upload. The workflow was published in commit `c498f01`
+and both the [check run](https://github.com/cpinotossi/cptdazagentprojectmanagment/actions/runs/43587714271)
+and the [OIDC publication run](https://github.com/cpinotossi/cptdazagentprojectmanagment/actions/runs/43587746018)
+succeeded. Those historical runs predate the consolidation. The workflow now publishes only
+the canonical reference and separate calibration controls. For subsequent releases:
 
 1. Dispatch `Foundry datasets` on main with `operation=check`.
 2. Dispatch it again with `operation=publish`.
 3. Check Azure Login, the dataset upload/readback steps and the run summary.
-   The summary must record all three catalog names, versions and hashes, as well
+   The summary must record both catalog names, versions and hashes, as well
    as the selected commit SHA.
 
 The workflow does not bootstrap its own identity or grant itself roles.

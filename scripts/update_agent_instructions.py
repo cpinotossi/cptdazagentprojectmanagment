@@ -3,13 +3,12 @@
 import argparse
 import copy
 import sys
-from pathlib import Path
 
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import PromptAgentDefinition
 from azure.identity import AzureCliCredential
 
-INSTRUCTIONS = Path(__file__).with_name("agent_instructions.txt")
+from setup_agent import INSTRUCTIONS
 
 
 def update_instructions(endpoint: str, agent_name: str) -> str:

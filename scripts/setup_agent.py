@@ -10,7 +10,24 @@ from azure.core.credentials import TokenCredential
 
 AGENT_NAME = "project-planning-agent"
 ONTOLOGY_CONNECTION = "fabric-iq-ontology"
-INSTRUCTIONS = Path(__file__).with_name("agent_instructions.txt")
+INSTRUCTIONS = Path(__file__).resolve().parents[1] / "agents/fabric-iq/instructions.txt"
+AGENT_SETTINGS: dict = {}
+
+
+def agent_definition(model_name: str, connection: str) -> PromptAgentDefinition:
+    """Build the same committed prompt/tool/settings intent for setup and release."""
+    instructions = INSTRUCTIONS.read_text(encoding="utf-8")
+    if not instructions.strip() or not model_name.strip() or not connection.strip():
+        raise ValueError("Agent instructions, model deployment and connection must not be empty")
+    if set(AGENT_SETTINGS) - {"temperature", "top_p", "reasoning", "text", "rai_config"}:
+        raise ValueError("AGENT_SETTINGS must contain only supported prompt runtime settings")
+    return PromptAgentDefinition({
+        "kind": "prompt",
+        **AGENT_SETTINGS,
+        "model": model_name,
+        "instructions": instructions,
+        "tools": [FabricIQPreviewTool(project_connection_id=connection, require_approval="never").as_dict()],
+    })
 
 
 def create_connection(
@@ -48,14 +65,9 @@ def setup_agent(
     )
 
     print("Foundry: creating the agent")
-    instructions = INSTRUCTIONS.read_text(encoding="utf-8")
     with AIProjectClient(endpoint=endpoint, credential=credential) as client:
         agent = client.agents.create_version(
             agent_name=AGENT_NAME,
-            definition=PromptAgentDefinition(
-                model=model_name,
-                instructions=instructions,
-                tools=[FabricIQPreviewTool(project_connection_id=connection, require_approval="never")],
-            ),
+            definition=agent_definition(model_name, connection),
         )
         print(f"  Agent {agent.name} version {agent.version}")

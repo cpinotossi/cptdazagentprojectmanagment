@@ -7,8 +7,11 @@ on:
       - 'infra/**'
       - 'logicapps/**'
       - 'scripts/deploy_logic_app.sh'
+      - 'scripts/test_logic_app.py'
+      - 'scripts/deploy_infrastructure.sh'
       - 'tests/test_logic_app_consumption.py'
       - 'tests/test_deployment_identity.py'
+      - 'tests/test_infrastructure_deployment.py'
   push:
     branches: [main]
     paths:
@@ -16,8 +19,11 @@ on:
       - 'infra/**'
       - 'logicapps/**'
       - 'scripts/deploy_logic_app.sh'
+      - 'scripts/test_logic_app.py'
+      - 'scripts/deploy_infrastructure.sh'
       - 'tests/test_logic_app_consumption.py'
       - 'tests/test_deployment_identity.py'
+      - 'tests/test_infrastructure_deployment.py'
   workflow_dispatch:
 
 permissions:
@@ -40,5 +46,8 @@ jobs:
         run: |
           bash -n scripts/deploy_logic_app.sh
           bash scripts/deploy_logic_app.sh check
+          bash -n scripts/deploy_infrastructure.sh
+          bash scripts/deploy_infrastructure.sh check
           python -m unittest discover -s tests -p test_logic_app_consumption.py -v
           python -m unittest discover -s tests -p test_deployment_identity.py -v
+          python -m unittest discover -s tests -p test_infrastructure_deployment.py -v

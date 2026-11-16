@@ -16,6 +16,7 @@ from business_evaluation_datasets import download_reference, publish_reference
 from business_evaluation_results import comparison_summary, verify_regression
 from business_evaluation_runtime import capture_agent_cases, create_agent_run, create_regression_run
 from evaluate_agent import finish_run, save_result, wait_for_run
+from foundry_datasets import REFERENCE_PATH, REFERENCE_SOURCE
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,7 +33,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", default=os.environ.get("FOUNDRY_PROJECT_ENDPOINT"))
     parser.add_argument("--judge-model", default="gpt-4.1")
-    parser.add_argument("--dataset", type=Path, default=ROOT / "evaluations/business_tests.json")
+    parser.add_argument("--dataset", type=Path)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--publish-reference", action="store_true", help="Register --dataset by content hash and save its pinned asset manifest to --result-file")
     parser.add_argument("--reference-asset", type=Path, help="Download and verify the pinned Foundry reference from this asset manifest instead of using local --dataset")
@@ -63,6 +64,7 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=1200)
     parser.add_argument("--resume", type=Path)
     args = parser.parse_args()
+    args.dataset = args.dataset or (REFERENCE_SOURCE if args.publish_reference else REFERENCE_PATH)
     if not args.endpoint or args.timeout <= 0:
         parser.error("--endpoint (or FOUNDRY_PROJECT_ENDPOINT) and a positive timeout are required")
     if args.publish_reference and (not args.result_file or args.reference_asset or args.resume):

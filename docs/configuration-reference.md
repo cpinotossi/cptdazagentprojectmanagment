@@ -67,7 +67,7 @@ A graph item `ProjectPlanning_graph_8750de7fd46f4dd484f4a7e31f68ff24` (`f5ce87ca
 | [ontology/entityRelationships.tmdl](../ontology/entityRelationships.tmdl) | Relationship types | Ontology item, relationship types |
 | [ontology/tables/](../ontology/tables) and [ontology/expressions.tmdl](../ontology/expressions.tmdl) | Data bindings of the entity types to the semantic model | Ontology item, entity type, data binding |
 | [ontology/rules/](../ontology/rules) | Business rules | Ontology item, Rules (links above) |
-| [scripts/agent_instructions.txt](../scripts/agent_instructions.txt) and [scripts/setup_agent.py](../scripts/setup_agent.py) | Agent `project-planning-agent` and the connection `fabric-iq-ontology` | Foundry portal, project `project-planning`, agent and connected resources |
+| [agents/fabric-iq/instructions.txt](../agents/fabric-iq/instructions.txt) and [scripts/setup_agent.py](../scripts/setup_agent.py) | Agent `project-planning-agent` and the connection `fabric-iq-ontology` | Foundry portal, project `project-planning`, agent and connected resources |
 
 ## The whole chain at a glance
 
@@ -477,7 +477,7 @@ Weaknesses:
 
 ## Agent: Foundry connection and prompt agent
 
-Files: [scripts/setup.py](../scripts/setup.py) (functions `create_connection` and `setup_agent`), [scripts/agent_instructions.txt](../scripts/agent_instructions.txt). Docs: [Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/overview), [runtime components](https://learn.microsoft.com/azure/foundry/agents/concepts/runtime-components), [environment setup](https://learn.microsoft.com/azure/foundry/agents/environment-setup), [Fabric IQ tool](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/fabric-iq), [MCP tools](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/model-context-protocol), [ontology MCP server](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-ontology-mcp-server), [Foundry IQ agent with an ontology](https://learn.microsoft.com/fabric/iq/ontology/how-to-create-agent-foundry-iq), [responses API](https://learn.microsoft.com/azure/foundry/openai/how-to/responses).
+Files: [scripts/setup.py](../scripts/setup.py) (functions `create_connection` and `setup_agent`), [agents/fabric-iq/instructions.txt](../agents/fabric-iq/instructions.txt). Docs: [Foundry Agent Service](https://learn.microsoft.com/azure/foundry/agents/overview), [runtime components](https://learn.microsoft.com/azure/foundry/agents/concepts/runtime-components), [environment setup](https://learn.microsoft.com/azure/foundry/agents/environment-setup), [Fabric IQ tool](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/fabric-iq), [MCP tools](https://learn.microsoft.com/azure/foundry/agents/how-to/tools/model-context-protocol), [ontology MCP server](https://learn.microsoft.com/fabric/iq/ontology/how-to-use-ontology-mcp-server), [Foundry IQ agent with an ontology](https://learn.microsoft.com/fabric/iq/ontology/how-to-create-agent-foundry-iq), [responses API](https://learn.microsoft.com/azure/foundry/openai/how-to/responses).
 
 ### Connection `fabric-iq-ontology`
 
@@ -506,7 +506,7 @@ Weaknesses: a caller without Fabric workspace access gets nothing, which is righ
 | Model | `gpt-4.1` (from the Bicep output) | The chat deployment |
 | Tool | `FabricIQPreviewTool` (`fabric_iq_preview`) with `project_connection_id` | The one tool |
 | `require_approval` | `never` | Calls run without a human approval step |
-| Instructions | [agent_instructions.txt](../scripts/agent_instructions.txt) | The prompt below |
+| Instructions | [instructions.txt](../agents/fabric-iq/instructions.txt) | The prompt below |
 | Versioning | `create_version` | Each run of `setup.py` creates a new version. The notebook reads from the live version (5 at the time of writing) |
 
 The prompt:

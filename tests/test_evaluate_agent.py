@@ -18,7 +18,7 @@ import evaluate_agent
 
 class EvaluationTests(unittest.TestCase):
     def test_six_case_dataset_is_valid_agent_target_input(self) -> None:
-        cases = evaluate_agent.load_cases(ROOT / "evaluations/business_tests.jsonl")
+        cases = evaluate_agent.load_cases(ROOT / "evaluations/generated/business_reference.jsonl")
         self.assertEqual(len(cases), 6)
 
     def test_invalid_missing_duplicate_and_fabricated_rows_fail(self) -> None:
@@ -75,7 +75,7 @@ class EvaluationTests(unittest.TestCase):
         client = Mock()
         client.post.side_effect = [evaluation, run]
         record = evaluate_agent.create_run(
-            project, client, "https://foundry.example", ROOT / "evaluations/business_tests.jsonl",
+            project, client, "https://foundry.example", ROOT / "evaluations/generated/business_reference.jsonl",
             "agent", None, "judge",
         )
         self.assertEqual(record["agent"], {"name": "agent", "version": "7"})
@@ -98,7 +98,7 @@ class EvaluationTests(unittest.TestCase):
             RunCreateResponse.model_construct(id="run-id"),
         ]
         record = evaluate_agent.create_run(
-            project, client, "https://foundry.example", ROOT / "evaluations/business_tests.jsonl",
+            project, client, "https://foundry.example", ROOT / "evaluations/generated/business_reference.jsonl",
             "agent", "6", "judge",
         )
         self.assertEqual(record["agent"]["version"], "6")

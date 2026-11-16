@@ -2,12 +2,6 @@
   "schema_version": 1,
   "datasets": [
     {
-      "name": "project-planning-business-checks",
-      "kind": "checks",
-      "sources": ["business_tests.json"],
-      "output": "business_tests.jsonl"
-    },
-    {
       "name": "project-planning-business-reference-cases",
       "kind": "cases",
       "sources": ["business_tests.json"],

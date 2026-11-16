@@ -13,6 +13,9 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "evaluations/datasets.json"
+REFERENCE_NAME = "project-planning-business-reference-cases"
+REFERENCE_SOURCE = ROOT / "evaluations/business_tests.json"
+REFERENCE_PATH = ROOT / "evaluations/generated/business_reference.jsonl"
 CHECK_FIELDS = ("id", "query", "context", "ground_truth")
 JUDGE_FIELDS = ("query", "context", "ground_truth", "criteria", "critical_errors")
 
@@ -67,6 +70,16 @@ def jsonl_bytes(rows: list[dict]) -> bytes:
     ).encode("utf-8")
 
 
+def reference_rows(cases: list[dict]) -> list[dict]:
+    return [
+        {**case, **{
+            field: json.dumps(case[field], ensure_ascii=False, sort_keys=True)
+            for field in ("criteria", "critical_errors")
+        }}
+        for case in cases
+    ]
+
+
 def render_datasets(catalog: Path) -> list[dict]:
     definition = json.loads(catalog.read_text(encoding="utf-8"))
     if definition.get("schema_version") != 1 or not definition.get("datasets"):
@@ -91,12 +104,9 @@ def render_datasets(catalog: Path) -> list[dict]:
             raise ValueError(f"{name}: output must be a unique JSONL path")
         outputs.add(output)
         rows = []
-        if kind in ("checks", "cases"):
+        if kind == "cases":
             cases = [case for path in input_paths for case in read_cases(path)]
-            rows = (
-                [{field: case[field] for field in CHECK_FIELDS} for case in cases]
-                if kind == "checks" else cases
-            )
+            rows = reference_rows(cases)
         elif kind == "calibration":
             reference = catalog_path(base, entry["reference"])
             sources.add(reference)

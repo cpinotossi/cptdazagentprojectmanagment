@@ -6,25 +6,32 @@ description: Separate infrastructure validation, approved identity bootstrap and
 ## Pipeline boundaries
 
 | Workflow | Trigger | Azure access | Scope |
-|----------|---------|--------------|-------|
+| ---------- | ------- | ------------ | ------- |
 | [Infrastructure CI](../.github/workflows/infra-ci.yml) | Relevant pull requests and pushes to main; manual | None | Compile Bicep and run focused infrastructure tests |
-| [Logic Apps deployment](../.github/workflows/deploy-logic-app.yml) | Manual, main only | OIDC through environment `azure-demo` | Preview or deploy only the Consumption module |
+| [Logic Apps deployment](../.github/workflows/deploy-logic-app.yml) | Manual, main only | OIDC through environment `azure-demo` | Preview, deploy disabled or explicitly activate the Consumption module |
+| [Full Azure infrastructure](../.github/workflows/deploy-infrastructure.yml) | Manual; offline check by default | Existing OIDC identity through `azure-demo` | Complete main Bicep template, including narrowly delegated Foundry access assignments |
 | [Foundry datasets](../.github/workflows/foundry-datasets.yml) | Relevant pull requests and main pushes validate; manual publication from main | OIDC through separate environment `foundry-demo` for publication only | Validate and publish committed JSONL datasets |
+| [Foundry agents](../.github/workflows/foundry-agents.yml) | Offline validation; manual publication from main | Existing OIDC identity through `foundry-demo` for publication | Versioned releases of the Fabric IQ and Basic agents |
 
 CI does not request an OIDC token or install the application dependencies.
-Actions are pinned to verified commit SHAs. The deployment workflow never invokes
+Actions are pinned to verified commit SHAs. The Consumption deployment workflow
+never invokes
 the full deployment script, Fabric setup, ontology publication or agent updates.
-It preserves the disabled preparation state and verifies it after deployment.
+Deploy preserves the disabled state. Activate enables delegated manual testing
+without running inference. Deployment OIDC does not replace the Fabric user
+token required per request, and activation does not certify runtime acceptance.
 
 The [Foundry dataset bootstrap](foundry-datasets.md#administrative-identity-bootstrap)
 uses a separate UAMI with Foundry User only at the project scope. Its identity,
-federation, main-only environment and variables have been provisioned; the first
-OIDC upload run still requires publishing the new workflow.
+federation, main-only environment and variables have been provisioned.
+The first [OIDC dataset upload](https://github.com/cpinotossi/cptdazagentprojectmanagment/actions/runs/43587746018)
+succeeded.
 
-Keep future full-infrastructure and Fabric/agent publication workflows separate.
-Full infrastructure currently contains role assignments and needs a different
-authorization design. Fabric publication also needs a proven supported identity
-flow; the deployment identity does not solve ontology runtime authentication.
+The [full infrastructure pipeline](azure-infrastructure-pipeline.md) reuses the
+existing deployment UAMI with an additional, narrowly conditioned role assignment
+at the Foundry account. The [agent pipeline](foundry-agents.md) reuses the existing
+Foundry UAMI. Fabric publication still needs a proven supported identity flow;
+these deployment identities do not solve ontology runtime authentication.
 
 ## Separate administrative bootstrap
 
@@ -53,7 +60,11 @@ az deployment group create \
 ```
 
 The deployment workflow does not run this bootstrap or grant itself roles.
-Contributor cannot create role assignments. However, Contributor can modify
+Contributor alone cannot create role assignments. The separately approved
+[RBAC extension](../infra/infrastructure-rbac.bicep) now allows only the two
+existing human Foundry assignments at the account scope, with a condition on role,
+principal ID and principal type. The pipeline cannot extend that delegation.
+However, Contributor can modify
 other resources, including federated credentials on identities in this resource
 group. The workflow's narrow deployment target is not an Azure authorization
 boundary. Consider a dedicated deployment resource group or narrower custom role
@@ -127,7 +138,8 @@ gh variable set LOGIC_APP_LOG_WORKSPACE_ID --repo "$repo" --env azure-demo \
 
 1. Dispatch the deployment workflow on main with `operation=what-if`.
 2. Approve access to the environment if required. Inspect the preview in the run
-   logs and confirm that only the Consumption workflow and diagnostics change.
+   logs and confirm that only the Consumption workflow and
+   diagnostics change.
 3. Dispatch a second run with `operation=deploy`. Review its commit SHA and target
    before approving. The job repeats tests and what-if before applying the module.
 4. Check the post-deployment disabled-state verification and run summary.
@@ -135,14 +147,17 @@ gh variable set LOGIC_APP_LOG_WORKSPACE_ID --repo "$repo" --env azure-demo \
 Environment approval occurs before the job, not between its what-if and apply
 steps. Separate runs provide manual review, not a cryptographically bound saved
 plan; if main changes, preview the new revision. Deployment runs are serialized.
-Do not run the full main deployment concurrently.
+The full infrastructure workflow uses the same concurrency group. Do not run
+the legacy local main deployment concurrently.
 
 Local tests, template compilation and live bootstrap readback have passed.
 The workflow YAML has passed actionlint. Use a what-if run to verify GitHub-issued
 OIDC login without deploying. Actual Logic Apps deployment is a separate manual
-operation. This preparation intentionally does not activate the workflow or implement the
-ontology integration described in the
-[Consumption guide](logic-apps-consumption.md).
+operation. Deploy does not activate the workflow. `operation=activate` applies
+the enabled state for manual testing described in the
+[Consumption guide](logic-apps-consumption.md). The workflow uses ontology MCP
+with a delegated user token supplied by the tester, not infrastructure OIDC.
+No live Fabric query or acceptance test runs during deployment.
 
 ## References
 

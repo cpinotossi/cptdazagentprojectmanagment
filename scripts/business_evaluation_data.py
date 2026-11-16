@@ -84,13 +84,12 @@ def recorded_answer(item: dict) -> str:
 
 
 def regression_cases(dataset_path: Path, source_path: Path, controls_path: Path) -> tuple[list[dict], dict]:
-    dataset_raw = dataset_path.read_bytes()
+    cases, reference_sha = load_dataset(dataset_path)
     source_raw = source_path.read_bytes()
     controls_raw = controls_path.read_bytes()
-    dataset = json.loads(dataset_raw)
     source = json.loads(source_raw)
     controls = json.loads(controls_raw)
-    case = next(case for case in dataset["test_cases"] if case["id"] == controls["case_id"])
+    case = next(case for case in cases if case["id"] == controls["case_id"])
     item = next(item for item in source["output_items"] if item["datasource_item"]["id"] == case["id"])
     for field in ("query", "context", "ground_truth"):
         if item["datasource_item"][field] != case[field]:
@@ -114,7 +113,7 @@ def regression_cases(dataset_path: Path, source_path: Path, controls_path: Path)
             raise ValueError("Regression candidates need a boolean label and nonempty response")
     rows = [references | candidate for candidate in candidates]
     provenance = {
-        "reference_sha256": hashlib.sha256(dataset_raw).hexdigest(),
+        "reference_sha256": reference_sha,
         "source_sha256": hashlib.sha256(source_raw).hexdigest(),
         "controls_sha256": hashlib.sha256(controls_raw).hexdigest(),
         "source_run_id": source["run_id"],
@@ -126,8 +125,8 @@ def regression_cases(dataset_path: Path, source_path: Path, controls_path: Path)
 
 
 def comparison_cases(dataset_path: Path, source_paths: list[Path]) -> tuple[list[dict], dict]:
-    raw = dataset_path.read_bytes()
-    cases = {case["id"]: case for case in json.loads(raw)["test_cases"]}
+    loaded, reference_sha = load_dataset(dataset_path)
+    cases = {case["id"]: case for case in loaded}
     rows = []
     sources = []
     source_agents = set()
@@ -147,7 +146,7 @@ def comparison_cases(dataset_path: Path, source_paths: list[Path]) -> tuple[list
             dataset_sha = source_sha
         elif source_sha != dataset_sha:
             raise ValueError("Comparison sources used different datasets")
-        if live and source_sha != hashlib.sha256(raw).hexdigest():
+        if live and source_sha != reference_sha:
             raise ValueError(f"{path}: historical reference differs from current reference")
         items = source["output_items"]
         if len(items) != len(cases) or {item["datasource_item"]["id"] for item in items} != set(cases):
@@ -180,7 +179,7 @@ def comparison_cases(dataset_path: Path, source_paths: list[Path]) -> tuple[list
     if len(source_agents) < 2:
         raise ValueError("Comparison requires at least two distinct agents")
     return rows, {
-        "mode": "comparison", "reference_sha256": hashlib.sha256(raw).hexdigest(),
+        "mode": "comparison", "reference_sha256": reference_sha,
         "source_dataset_sha256": dataset_sha, "sources": sources,
         "note": "Blind replay of recorded responses; agent names are not mapped to the judge. "
                 "No new agent inference. Different agent knowledge is intentional.",

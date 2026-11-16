@@ -1,0 +1,5 @@
+{
+  "endpoint": "https://ai-projplan-axowf3.services.ai.azure.com/api/projects/project-planning",
+  "model": "gpt-4.1",
+  "connection_id": "/subscriptions/98525264-1eb4-493f-983d-16a330caa7f6/resourceGroups/rg-projplan-demo/providers/Microsoft.CognitiveServices/accounts/ai-projplan-axowf3/projects/project-planning/connections/fabric-iq-ontology"
+}

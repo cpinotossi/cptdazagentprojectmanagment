@@ -1,171 +1,390 @@
 ---
-title: Consumption orchestration and infrastructure coverage
-description: Integrated Bicep deployment, safe preparation status and remaining provisioning boundaries
+title: Explicit Fabric IQ orchestration with delegated authentication
+description: Consumption deployment and manual testing of ontology entity matching, query rewriting and ask_ontology
 ---
 
-## Consumption deployment
+Executable walkthrough: [Bash notebook](./logic-apps-consumption.ipynb).
 
-[main.bicep](../infra/main.bicep) includes the
-[Consumption module](../infra/modules/logic-apps-consumption.bicep) by default.
-Set `deployLogicApp=false` to omit the module from a deployment. In incremental
-mode, omitting it does not delete an already deployed workflow.
+## What the workflow does
 
-Consumption deploys both the `Microsoft.Logic/workflows` resource and its
-[workflow definition](../logicapps/ontology-orchestration/workflow.json) through
-Bicep. No dedicated hosting plan, app service, storage account, host configuration
-or ZIP publication is needed. The earlier, undeployed Standard preparation was
-removed. This change does not migrate or delete any cloud resources.
+The [Consumption definition](../logicapps/ontology-orchestration/workflow.json)
+calls the Fabric IQ ontology MCP endpoint directly, without invoking the Foundry
+IQ agent:
 
-The workflow has a system-assigned identity and is always deployed disabled.
-The main deployment sends `WorkflowRuntime` diagnostics to its existing Log
-Analytics workspace. No additional workspace or Application Insights is created.
-No callback URL or token is emitted as a deployment output.
+1. Call `list_ontology_entities` without name filters to retrieve all entities,
+   including properties, synonyms and source links.
+2. Call `list_ontology_rules` without entity filters to retrieve every rule,
+   including rules that would be missed by entity-only filtering.
+3. Give this metadata and the complete original question to a Foundry model.
+   Resolve entity references and produce an ontology-grounded query rewrite.
+   Record relevance and a reason for every rule. A fact-dependent rule remains
+   potentially applicable until evidence has been retrieved.
+4. Verify entity names, exact rule coverage, unresolved semantics and request
+   length. Send the unchanged original question plus the clarification to
+   `ask_ontology` as its `request` argument.
+5. Let Fabric IQ retrieve evidence through the ontology's bindings, including
+   the semantic model where applicable. The workflow does not select SQL tables,
+   reproduce semantic measures or substitute its own retrieval implementation.
+6. Independently validate the returned answer against the original question,
+   the rewrite, ontology entities and every rule. Return the original Fabric IQ
+   answer only after successful model review and structural checks.
 
-> [!IMPORTANT]
-> The definition remains a nonfunctional integration scaffold, not an assessment
-> workflow. If manually enabled, it returns HTTP 503 with
-> `OntologyIntegrationNotConfigured` and marks the run as failed. Rule retrieval,
-> semantic resolution, evidence retrieval and assessment are not implemented.
-> Redeployment restores this definition and the disabled state.
+The [stage prompts](../logicapps/ontology-orchestration/prompts.json) contain
+orchestration instructions, not business policies. Policies remain in the
+ontology. An empty rule set is supported; nonempty sets require exact coverage.
+There is no physical SQL connector, definition REST/TMDL download, tool-selection
+agent, order placement or notification action in this workflow.
 
-## Validate and deploy without touching Fabric
+
+## Fabric IQ tools list
+
+~~~bash
+MCP_URL='https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/66d9c2b2-d35e-4555-9e74-926164ce584c/items/8750de7f-d46f-4dd4-84f4-a7e31f68ff24/ontologyEndpoint'
+
+FABRIC_IQ_MCP=$(az rest --method post \
+  --resource https://api.fabric.microsoft.com \
+  --url "$MCP_URL" \
+  --headers 'Content-Type=application/json' \
+    'Accept=application/json, text/event-stream' \
+  --body '{"jsonrpc":"2.0","id":"tools","method":"tools/list","params":{}}' -o json)
+jq '.result.tools | map({
+  name,
+  description,
+  parameters: (.inputSchema.properties | to_entries | map({
+    name: .key,
+    description: .value.description
+  }))
+})' <<< "$FABRIC_IQ_MCP"
+~~~
+
+## Fabric IQ list_ontology_entities
+
+~~~bash
+WORKSPACE_ID='66d9c2b2-d35e-4555-9e74-926164ce584c'
+ONTOLOGY_ID='8750de7f-d46f-4dd4-84f4-a7e31f68ff24'
+MCP_URL="https://api.fabric.microsoft.com/v1/mcp/dataPlane"
+MCP_URL+="/workspaces/${WORKSPACE_ID}/items/${ONTOLOGY_ID}/ontologyEndpoint"
+
+FABRIC_IQ_MCP_LIST_RESULT=$(az rest --method post \
+  --resource https://api.fabric.microsoft.com \
+  --url "$MCP_URL" \
+  --headers 'Content-Type=application/json' \
+    'Accept=application/json, text/event-stream' \
+  --body '{
+    "jsonrpc": "2.0",
+    "id": "entities",
+    "method": "tools/call",
+    "params": {
+      "name": "list_ontology_entities",
+      "arguments": {}
+    }
+  }' -o json)
+echo "$FABRIC_IQ_MCP_LIST_RESULT" | jq '.result.structuredContent.values | map({name, synonyms})'
+~~~
+
+~~~bash
+FABRIC_IQ_MCP_LIST_RESULT=$(az rest --method post \
+  --resource https://api.fabric.microsoft.com \
+  --url "$MCP_URL" \
+  --headers 'Content-Type=application/json' \
+    'Accept=application/json, text/event-stream' \
+  --body '{
+    "jsonrpc": "2.0",
+    "id": "entities",
+    "method": "tools/call",
+    "params": {
+      "name": "list_ontology_entities",
+      "arguments": {"entityName": "qwert"}
+    }
+  }' -o json)
+echo "$FABRIC_IQ_MCP_LIST_RESULT" | jq '.result.structuredContent.values | map({name, synonyms})'
+~~~
+
+
+## Authentication boundaries
+
+There are three separate authentication paths:
+
+* The caller authenticates to the Logic App with an Entra token for
+  `https://management.azure.com/`. The Request trigger checks tenant, issuer and
+  an explicit caller object-ID allowlist. SAS authentication remains disabled.
+* The caller supplies a delegated user token for
+  `https://api.fabric.microsoft.com` in the request body's `fabricAccessToken`.
+  Only the three fixed Fabric MCP HTTP actions use it. It is not a workflow
+  parameter, deployment secret, model input, response field or poll header.
+* The workflow uses the existing `id-projplan-github-foundry` Managed Identity
+  only for the Foundry rewrite and validation model calls.
+
+The Fabric user must have the supported access to the ontology and its bound
+data sources. Granting the workflow identity more SQL or lakehouse permissions
+does not replace this delegated access. The workflow does not implement OAuth
+consent, on-behalf-of exchange or token renewal. Expired or insufficient tokens
+fail explicitly; there is no SQL or Managed Identity fallback for Fabric IQ.
+
+The trigger and credential-bearing MCP actions secure both inputs and outputs
+in run history. Do not remove these settings to debug authentication. Tokens
+still pass through the Logic Apps runtime; restrict workflow administration and
+run-history access. Never put tokens in files, shell arguments, screenshots,
+source control or model prompts.
+
+The current endpoint was checked with delegated authentication:
+`tools/list`, both unfiltered metadata tools and their structured response
+shapes were verified. The supported response contract is JSON-RPC JSON with
+`result.structuredContent.values` for metadata and text content for the answer.
+Protocol errors, tool errors, malformed results and oversized payloads fail
+closed. This implementation uses the verified stateless calls; it does not
+parse SSE streams or implement a session-based MCP transport.
+
+## Deployment
+
+The [Bicep module](../infra/modules/logic-apps-consumption.bicep) deploys only the
+Consumption workflow and optional diagnostics in the existing Log Analytics
+workspace. It creates no hosting plan, storage account, SQL connection or new
+identity. The Foundry project role assignment remains unchanged.
+
+[Demo parameters](../infra/logic-apps-demo.bicepparam) load the nonsecret
+[environment bindings](../logicapps/ontology-orchestration/deployment.json).
+The [main template](../infra/main.bicep) embeds the same module. Both deployment
+paths default to Disabled. The module-only helper does not publish Fabric
+content, change the capacity, import data or release agents.
 
 ```bash
-# Local compilation only; no Azure resource deployment.
 bash scripts/deploy_logic_app.sh check
-.venv/bin/python -m unittest discover -s tests -p test_logic_app_consumption.py
+PYTHONPATH=tests .venv/bin/python -m unittest test_logic_app_consumption -v
 
-# Select the existing project resource group explicitly.
-export AZURE_SUBSCRIPTION_ID='<target-subscription-id>'
-export LOGIC_APP_RESOURCE_GROUP='<existing-project-resource-group>'
+export AZURE_SUBSCRIPTION_ID='98525264-1eb4-493f-983d-16a330caa7f6'
+export LOGIC_APP_RESOURCE_GROUP='rg-projplan-demo'
 export LOGIC_APP_LOCATION='swedencentral'
-
-# Optional for module-only deployments; main.bicep supplies this automatically.
-export LOGIC_APP_LOG_WORKSPACE_ID='<existing-workspace-resource-id>'
 
 bash scripts/deploy_logic_app.sh what-if
 CONFIRM_LOGIC_APP_DEPLOYMENT=yes bash scripts/deploy_logic_app.sh deploy
 ```
 
-The helper deploys the same module with the same deterministic resource name as
-the main deployment, using incremental mode. Keep `LOGIC_APP_BASE_NAME` (default
-`projplan`), resource group and region aligned with the main deployment. If the
-workflow already exists with diagnostics, supply the same workspace ID; omitting
-the conditional diagnostic resource does not delete it in incremental mode.
-Do not run main and module-only deployments concurrently.
+For manual tests, explicitly enable the workflow:
 
-The existing [deploy.sh](../deploy.sh) also includes the module through main.bicep.
-However, that script subsequently runs Fabric setup and publishes an agent
-version. Do not use it just to prepare Logic Apps while editing ontology or data.
-The module-only helper does not import data, publish definitions, resize the Fabric
-capacity or change Foundry-agent versions.
+```bash
+CONFIRM_LOGIC_APP_DEPLOYMENT=yes CONFIRM_LOGIC_APP_ACTIVATION=yes \
+  bash scripts/deploy_logic_app.sh activate
+```
 
-For isolated CI and manual module-only deployment through Entra workload identity
-federation, follow the [GitHub Actions setup](github-actions-deployment.md).
-The separate bootstrap identity has resource-group Contributor; it does not grant
-the runtime workflow access to Fabric.
+`activate` now means enable for delegated manual tests. It does not execute
+Fabric inference, certify runtime acceptance or automatically disable after a
+failed manual test. Disable the workflow after testing through the portal or
+redeploy with `deploy`.
 
-Consumption has execution-based charges rather than a dedicated WS1 hosting
-charge. Connectors, diagnostics and model usage can incur additional charges.
-Compilation and local tests are not proof of working cloud authentication.
+The [GitHub workflow](../.github/workflows/deploy-logic-app.yml) supports the same
+operations using infrastructure OIDC. That identity deploys the workflow; it
+does not impersonate a Fabric user or run a delegated smoke test.
+Incremental deployment does not delete the old `sql-projplan-tbv74x` connection.
+It is no longer referenced; removal and permission cleanup are separate
+administrative operations.
 
-## Designer
+## Manual tests
 
-Consumption workflows can be visually edited in the Azure portal. The VS Code
-Consumption extension provides a read-only designer and JSON editing, not local
-visual editing. Standard's local visual designer cannot be assumed to support
-Consumption. Consumption agent loops are a separate preview capability and are
-not required for ordinary ordered workflow actions.
+Sign in locally as an authorized user. This sign-in is deliberately separate
+from deployment:
 
-After any portal edits, transfer the reviewed definition into the repository.
-Otherwise the next Bicep deployment overwrites those edits.
+```bash
+az login --tenant f71980b2-590a-4de9-90d5-6fbc867da951
 
-## Authentication and functional integration
+RESOURCE_ID="$(az logic workflow show \
+  --subscription 98525264-1eb4-493f-983d-16a330caa7f6 \
+  --resource-group rg-projplan-demo --name logic-projplan-tbv74x \
+  --query id --output tsv)"
 
-The managed Foundry Agent Service connector documents an `Invoke Prompt Agent`
-action with an agent version and Entra user-login authentication. Its connector
-class named `Standard` is not a requirement for Standard hosting.
+echo $RESOURCE_ID
 
-Before creating connection resources, prove Consumption -> pinned Foundry agent
--> Fabric IQ with the intended delegated user. Authentication to Foundry does
-not establish automatic user delegation to Fabric. The ontology MCP documentation
-currently excludes service principal access due to a known issue. A workflow
-managed identity alone is therefore not a working ontology-access solution.
+.venv/bin/python scripts/test_logic_app.py \
+  --resource-id "$RESOURCE_ID" \
+  --query 'Gib mir eine Liste aller qwert mit ihrer ID und ihrem Namen.'
+```
 
-OAuth connection resource definitions and access policies can be deployed through
-ARM/Bicep where supported, but user sign-in, consent and authorization still need
-an explicit setup step. Do not store access tokens in workflow JSON or outputs.
-Caller authentication and authorization on the Request trigger must also be
-designed before activation; the disabled state is not a finished access policy.
+The [manual client](../scripts/test_logic_app.py) obtains the ARM and Fabric
+tokens separately from Azure CLI's existing user session. Tokens stay in memory
+and are not printed. Interactive consent, if required, must be completed by the
+user before running the test. The client will not initiate interactive login.
+Only the original question and the Fabric access token enter the request body;
+reference context, ground truth and evaluator criteria are not sent.
 
-Once authentication works, enforce the following ordinary workflow stages:
+For a manual HTTP request, use an ARM Bearer token in the Authorization header
+and this body shape, replacing the placeholder in memory rather than saving it:
 
-1. Retrieve the current complete rule catalog and semantic metadata.
-2. Resolve names and declared synonyms using the ontology, not an exact-name
-   entity filter.
-3. Record applicable, not-applicable or unresolved status with a reason for every
-   rule, including unlinked rules and property/relationship-linked rules.
-4. Retrieve the evidence required by applicable rules.
-5. Apply retrieved rules and validate coverage and evidence before answering.
+```json
+{
+  "query": "Your complete original question",
+  "fabricAccessToken": "<delegated Fabric access token>"
+}
+```
 
-An unresolved rule or failed retrieval must not yield a successful assessment.
-Business definitions remain only in the ontology. Rule coverage checks cannot
-guarantee correct LLM interpretation; evaluate both traces and business outcomes.
-Direct agent calls bypass this external orchestrator, so the client must call
-the workflow entry point. No notification delivery is introduced here.
+The legacy optional `context` property is accepted but ignored. The client polls
+the asynchronous response using only the ARM token and rejects SAS links,
+redirects, cross-host links and links to another workflow.
 
-## What Bicep covers
+The success response contains only `response`, `validation` and `runId`.
+The returned answer is the joined text content of the actual `ask_ontology`
+result, not a locally generated replacement. Entity metadata, rule definitions,
+the rewrite and the raw tool result remain internal; their checks still run.
+Model validation is not independent verification of the underlying data.
 
-| Component | Current owner | Coverage |
-|-----------|---------------|----------|
-| Resource group | `deploy.sh` | Created by Azure CLI before the resource-group-scoped Bicep deployment |
-| Foundry account and project, their identities | `main.bicep` | ARM resources, local authentication disabled |
-| Chat and embedding deployments | `main.bicep` | Model versions, SKU and capacity |
-| Fabric capacity and capacity administrator | `main.bicep` | Capacity resource and configured administrator |
-| Log Analytics and Application Insights | `main.bicep` | Resources and Foundry tracing connection |
-| Deployer Foundry roles | `main.bicep` | Foundry User and Project Manager at account scope |
-| Consumption workflow, identity and runtime diagnostics | Consumption module | Disabled scaffold and definition; no operational integration |
-| GitHub deployment identity, federation and RG Contributor | Separate `deployment-identity.bicep` bootstrap | Not invoked by main or the regular deployment workflow |
-| Fabric workspace, lakehouse and capacity association | `setup.py` | Fabric REST, not the current Bicep template |
-| CSV/PDF ingestion, Content Understanding configuration | Setup/import scripts | Data-plane analyzer/default configuration, extraction, upload and table loading |
-| Semantic model, ontology and bindings | Setup/import scripts | TMDL publication, refresh and verification; no Bicep-managed business rules |
-| Fabric-IQ project connection | `setup_agent.py` | ARM REST connection, currently not declared in Bicep |
-| Foundry prompt agent and versions | Setup/update scripts | Projects SDK, not Bicep |
-| Baseline agent, datasets, evaluators and evaluation runs | Evaluation/baseline scripts | Separate data-plane execution and provenance |
+Use `runId` to find the workflow run in Azure. Run history retains action status,
+timing and failure location, subject to the configured retention. Secure inputs
+and outputs remain hidden, so this is not a full content trace. Reducing the
+response does not add Foundry/OpenTelemetry tracing or expose Fabric's internal
+queries. The manual client validates the compact result; it no longer
+cross-checks the internal metadata or raw answer, which are not returned.
 
-This is repository deployment coverage, not an audit of every live Azure resource.
-Not every item outside Bicep is a defect. Fabric content and data operations should
-remain separate from infrastructure provisioning.
+### Call with HTTPie
 
-## Gaps to close in priority order
+Requires Bash, Azure CLI, HTTPie (`http`) and your existing user login.
 
-1. Establish delegated Fabric authentication, connector permissions, caller
-   authorization and a pinned agent invocation. This blocks an operational workflow.
-2. Implement and evaluate the generic orchestration and its failure paths. This
-   preparation does not make the explicit path available in notebooks yet.
-3. Separate infrastructure-only deployment from bootstrap in the main entry point.
-   The current full script always invokes Fabric setup after Bicep. The module-only
-   helper provides a safe narrow path for this change.
-4. Move the ARM-managed Fabric-IQ connection into Bicep after workspace/ontology
-   identifiers are explicit deployment inputs. Avoid two independent deployment
-   owners and do not hardcode a snapshot of the changing ontology.
-5. Add environment parameter files and deployment identity/target checks. The main
-   script currently uses the active CLI subscription and defaults Fabric to F2;
-   a rerun can resize a capacity unintentionally.
-6. Complete GitHub environment protections and variables for the prepared
-   module-only pipeline, then verify OIDC and its first deployment. Functional
-   smoke tests remain blocked on the integration. Keep data-plane provisioning
-   explicitly opt-in and track resulting Fabric IDs and agent versions.
-7. Review runtime least privilege, diagnostic retention, alerts/budgets and network
-   requirements. Do not add broad roles or private networking without requirements.
+```bash
+SUBSCRIPTION='98525264-1eb4-493f-983d-16a330caa7f6'
+RESOURCE_ID="$(az logic workflow show --subscription "$SUBSCRIPTION" \
+  --resource-group rg-projplan-demo --name logic-projplan-tbv74x \
+  --query id -o tsv)"
 
-Fabric tenant settings, consent and caller permissions remain administrative
-prerequisites. Moving them into Bicep is not automatically supported or desirable.
+CALLBACK="$(az rest --method post \
+  --url "https://management.azure.com${RESOURCE_ID}/triggers/\
+When_a_request_is_received/listCallbackUrl?api-version=2019-05-01" \
+  --query value -o tsv)"
+
+ARM_TOKEN="$(az account get-access-token \
+  --resource https://management.azure.com/ --query accessToken -o tsv)"
+
+FABRIC_TOKEN="$(az account get-access-token \
+  --resource https://api.fabric.microsoft.com --query accessToken -o tsv)"
+
+QUESTION_B_006='Gib mir eine Liste aller qwert mit ihrer ID und ihrem Namen.'
+
+http --ignore-stdin --print=hb --json POST "$CALLBACK" "Authorization:@"<(printf 'Bearer %s' "$ARM_TOKEN") query="$QUESTION_B_006" "fabricAccessToken=@"<(printf '%s' "$FABRIC_TOKEN")
+```
+
+~~~bash
+http --ignore-stdin --print=hb --json POST "$CALLBACK" "Authorization:@"<(printf 'Bearer %s' "$ARM_TOKEN") query="$QUESTION_B_006" "fabricAccessToken=@"<(printf '%s' "$FABRIC_TOKEN")
+HTTP/1.1 202 Accepted
+Cache-Control: no-cache
+Content-Length: 1067
+Content-Type: application/json; charset=utf-8
+Date: Mon, 16 Nov 2026 16:57:21 GMT
+Expires: -1
+Location: https://prod-07.swedencentral.logic.azure.com/workflows/d94b1945eaa34587ba79c76b84cdd22f/runs/08584067586442818169790444156CU27/operations/d5b5d497-a889-4e4f-8657-f169ee86eb5f?api-version=2019-05-01
+Pragma: no-cache
+Retry-After: 10
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+x-ms-client-tracking-id: 08584067586442818169790444156CU27
+x-ms-correlation-id: d5b5d497-a889-4e4f-8657-f169ee86eb5f
+x-ms-execution-location: swedencentral
+x-ms-ratelimit-burst-remaining-workflow-writes: 2811
+x-ms-ratelimit-remaining-workflow-download-contentsize: 201326592
+x-ms-ratelimit-remaining-workflow-upload-contentsize: 201324120
+x-ms-ratelimit-time-remaining-directapirequests: 18749902
+x-ms-request-id: swedencentral:d5b5d497-a889-4e4f-8657-f169ee86eb5f
+x-ms-tracking-id: d5b5d497-a889-4e4f-8657-f169ee86eb5f
+x-ms-trigger-history-name: 08584067586442818169790444156CU27
+x-ms-workflow-id: d94b1945eaa34587ba79c76b84cdd22f
+x-ms-workflow-name: logic-projplan-tbv74x
+x-ms-workflow-run-id: 08584067586442818169790444156CU27
+x-ms-workflow-system-id: /locations/swedencentral/scaleunits/prod-07/workflows/d94b1945eaa34587ba79c76b84cdd22f
+x-ms-workflow-version: 08584067597425572070
+
+{
+    "id": "/workflows/d94b1945eaa34587ba79c76b84cdd22f/runs/08584067586442818169790444156CU27",
+    "name": "08584067586442818169790444156CU27",
+    "properties": {
+        "correlation": {
+            "clientTrackingId": "08584067586442818169790444156CU27"
+        },
+        "outputs": {},
+        "response": {
+            "correlation": {},
+            "startTime": "2026-11-16T16:57:21.1866849Z",
+            "status": "Waiting"
+        },
+        "startTime": "2026-11-16T16:57:21.1993526Z",
+        "status": "Running",
+        "trigger": {
+            "correlation": {
+                "clientTrackingId": "08584067586442818169790444156CU27"
+            },
+            "endTime": "2026-11-16T16:57:21.1866849Z",
+            "inputsLink": {
+                "contentSize": 267,
+                "secureData": {
+                    "properties": [
+                        "inputs"
+                    ]
+                }
+            },
+            "name": "When_a_request_is_received",
+            "originHistoryName": "08584067586442818169790444156CU27",
+            "outputsLink": {
+                "contentSize": 3657,
+                "secureData": {
+                    "properties": [
+                        "outputs"
+                    ]
+                }
+            },
+            "startTime": "2026-11-16T16:57:21.1866849Z",
+            "status": "Succeeded"
+        },
+        "waitEndTime": "2026-11-16T16:57:21.1993526Z",
+        "workflow": {
+            "id": "/workflows/d94b1945eaa34587ba79c76b84cdd22f/versions/08584067597425572070",
+            "name": "08584067597425572070",
+            "type": "Microsoft.Logic/workflows/versions"
+        }
+    },
+    "type": "Microsoft.Logic/workflows/runs"
+}
+~~~
+
+
+For HTTP 202, copy the `Location` response header into `POLL_URL`.
+Run the GET again after a few seconds until HTTP 200 returns the result:
+
+```bash
+POLL_URL='https://prod-07.swedencentral.logic.azure.com/workflows/d94b1945eaa34587ba79c76b84cdd22f/runs/08584067586442818169790444156CU27/operations/d5b5d497-a889-4e4f-8657-f169ee86eb5f?api-version=2019-05-01'
+http --ignore-stdin --print=hb GET "$POLL_URL"  "Authorization:@"<(printf 'Bearer %s' "$ARM_TOKEN")
+```
+
+## Errors and diagnostic stages
+
+The run's `stage` and action names identify the failure location:
+
+* `fabric-iq-metadata`: `List_ontology_entities`, `List_ontology_rules`,
+  metadata validation or parsing
+* `entity-matching-and-query-rewrite`: `Rewrite_query` and `Check_rewrite`
+* `ask-ontology`: `Ask_ontology` and `Check_ontology_result`
+* `answer-validation`: `Validate_answer` and `Check_validation`
+
+HTTP transport failures, including Fabric 401/403, return HTTP 502 with the
+stage and run ID. JSON-RPC/tool failures and invalid metadata, rewrites or
+answers return explicit HTTP 422 errors. Failed runs never return a
+success-shaped assessment.
+
+The combined original question, instructions and clarification must fit
+`ask_ontology`'s 10000-character request limit. Overlong input is rejected,
+not truncated. Each metadata response and the ontology answer are bounded
+to 120000 characters. Unsupported response formats fail rather than falling
+back to direct SQL.
+
+## Historical SQL comparison
+
+The previous REST/SQL implementation passed a smoke test but only 1/6 diagnostic
+cases. IQ v8 passed 6/6 using the same evaluator v7 and reference dataset.
+Four workflow cases were rejected during source/rule screening and one failed
+SQL login. That comparison changed the retrieval implementation as well as
+orchestration, so it did not isolate the effect of explicit ordering.
+
+Captures and judgments remain in the ignored
+`evaluations/manual_runs/explicit-comparison-20261116/` directory.
+Those scores do not evaluate this new MCP-based workflow. Its answer-quality
+tests are intentionally left to the user's delegated manual execution.
 
 ## Microsoft references
 
-* [Consumption workflow ARM/Bicep resource](https://learn.microsoft.com/en-us/azure/templates/microsoft.logic/2019-05-01/workflows)
-* [Foundry Agent Service connector](https://learn.microsoft.com/en-us/connectors/azureagentservice/)
-* [VS Code editing and designer limitations](https://learn.microsoft.com/en-us/azure/logic-apps/manage-logic-apps-visual-studio-code#edit-a-workflow)
-* [Consumption agent-loop prerequisites](https://learn.microsoft.com/en-us/azure/logic-apps/create-autonomous-agent-workflows#prerequisites)
-* [Ontology MCP authentication limitation](https://learn.microsoft.com/en-us/fabric/iq/ontology/how-to-use-ontology-mcp-server)
+* [Ontology MCP tools and authentication](https://learn.microsoft.com/en-us/fabric/iq/ontology/how-to-use-ontology-mcp-server)
+* [Managed Identity for Foundry HTTP calls](https://learn.microsoft.com/en-us/azure/logic-apps/authenticate-with-managed-identity)
+* [Workflow security and secure run history](https://learn.microsoft.com/en-us/azure/logic-apps/set-up-security-permissions)
+* [Consumption workflow resource](https://learn.microsoft.com/en-us/azure/templates/microsoft.logic/2019-05-01/workflows)

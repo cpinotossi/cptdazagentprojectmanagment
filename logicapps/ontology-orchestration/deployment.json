@@ -1,0 +1,11 @@
+{
+  "runtimeIdentityResourceId": "/subscriptions/98525264-1eb4-493f-983d-16a330caa7f6/resourceGroups/rg-projplan-demo/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-projplan-github-foundry",
+  "workspaceId": "66d9c2b2-d35e-4555-9e74-926164ce584c",
+  "ontologyId": "8750de7f-d46f-4dd4-84f4-a7e31f68ff24",
+  "foundryProjectEndpoint": "https://ai-projplan-axowf3.services.ai.azure.com/api/projects/project-planning",
+  "allowedCallerObjectIds": [
+    "7ec82027-da8d-42fb-8163-1fcf27f6c3ce",
+    "303720b3-74ea-4ddb-ba23-665e739c92a7",
+    "7a4c09e1-dfff-4536-a2c1-f9545e8bdc50"
+  ]
+}

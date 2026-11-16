@@ -1,0 +1,111 @@
+name: Deploy Azure infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Compile, preview, or deploy the complete main Bicep template.
+        required: true
+        type: choice
+        default: check
+        options: [check, what-if, deploy]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: azure-demo-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: az bicep install --version v0.44.1
+      - name: Compile infrastructure and validate deployment guardrails
+        run: |
+          bash -n scripts/deploy_infrastructure.sh
+          bash scripts/deploy_infrastructure.sh check
+          python -m unittest discover -s tests -p test_infrastructure_deployment.py -v
+          python -m unittest discover -s tests -p test_logic_app_consumption.py -v
+          python -m unittest discover -s tests -p test_deployment_identity.py -v
+
+  deploy:
+    if: inputs.operation != 'check' && github.ref == 'refs/heads/main' && github.repository == 'cpinotossi/cptdazagentprojectmanagment'
+    needs: validate
+    environment: azure-demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+      FOUNDRY_ACCESS_PRINCIPAL_ID: ${{ vars.FOUNDRY_ACCESS_PRINCIPAL_ID }}
+      FABRIC_ADMIN_UPN: ${{ secrets.FABRIC_ADMIN_UPN }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Require the existing deployment identity and approved target
+        env:
+          CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          test "$CLIENT_ID" = be499f20-5eb8-47b5-8ff7-5c40341ecd93
+          test "$AZURE_TENANT_ID" = f71980b2-590a-4de9-90d5-6fbc867da951
+          test "$AZURE_SUBSCRIPTION_ID" = 98525264-1eb4-493f-983d-16a330caa7f6
+          test "$AZURE_RESOURCE_GROUP" = rg-projplan-demo
+          : "${FOUNDRY_ACCESS_PRINCIPAL_ID:?Configure the approved human Foundry principal}"
+          : "${FABRIC_ADMIN_UPN:?Configure the Fabric administrator as an environment secret}"
+      - uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - run: az bicep install --version v0.44.1
+      - name: Preview all application infrastructure including Foundry access
+        run: bash scripts/deploy_infrastructure.sh what-if
+      - name: Apply the complete main template
+        if: inputs.operation == 'deploy'
+        env:
+          CONFIRM_INFRASTRUCTURE_DEPLOYMENT: 'yes'
+        run: bash scripts/deploy_infrastructure.sh deploy
+      - name: Verify disabled orchestration and retained Fabric SKU
+        if: inputs.operation == 'deploy'
+        run: |
+          set -euo pipefail
+          logic_id="$(az deployment group show --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name azure-infrastructure \
+            --query properties.outputs.logicAppResourceId.value --output tsv)"
+          test -n "$logic_id" && test "$logic_id" != None
+          test "$(az resource show --ids "$logic_id" --api-version 2019-05-01 \
+            --query properties.state --output tsv)" = Disabled
+          capacity="$(az deployment group show --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name azure-infrastructure \
+            --query properties.outputs.fabricCapacityName.value --output tsv)"
+          expected_sku="$(az deployment group show --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --resource-group "$AZURE_RESOURCE_GROUP" --name azure-infrastructure \
+            --query properties.parameters.fabricSku.value --output tsv)"
+          capacity_id="/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP/providers/Microsoft.Fabric/capacities/$capacity"
+          test "$(az resource show --ids "$capacity_id" --api-version 2023-11-01 \
+            --query sku.name --output tsv)" = "$expected_sku"
+      - name: Record deployment provenance without secret parameters
+        env:
+          OPERATION: ${{ inputs.operation }}
+        run: |
+          {
+            printf '### Azure application infrastructure\n\n'
+            printf 'Operation: `%s`\n\nCommit: `%s`\n\n' "$OPERATION" "$GITHUB_SHA"
+            printf 'Target: `%s / %s`\n\n' "$AZURE_SUBSCRIPTION_ID" "$AZURE_RESOURCE_GROUP"
+            printf 'Parameters: `infra/demo.bicepparam`. No Fabric imports or agent publication.\n'
+          } >> "$GITHUB_STEP_SUMMARY"

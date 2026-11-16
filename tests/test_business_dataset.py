@@ -22,12 +22,12 @@ class BusinessDatasetTests(unittest.TestCase):
         )
         exported = [
             json.loads(line)
-            for line in (ROOT / "evaluations/business_tests.jsonl").read_text().splitlines()
+            for line in (ROOT / "evaluations/generated/business_reference.jsonl").read_text().splitlines()
         ]
-        self.assertEqual(exported, [
-            {key: case[key] for key in ("id", "query", "context", "ground_truth")}
-            for case in self.cases
-        ])
+        for row in exported:
+            for field in ("criteria", "critical_errors"):
+                row[field] = json.loads(row[field])
+        self.assertEqual(exported, self.cases)
         for case in self.cases:
             with self.subTest(case=case["id"]):
                 for field in ("query", "context", "ground_truth", "criteria", "critical_errors", "sources"):

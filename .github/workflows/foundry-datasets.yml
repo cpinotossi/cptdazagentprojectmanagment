@@ -6,9 +6,17 @@ on:
       - 'evaluations/**'
       - 'scripts/foundry_datasets.py'
       - 'scripts/business_evaluation_datasets.py'
+      - 'scripts/business_evaluation_data.py'
+      - 'scripts/business_evaluation_runtime.py'
+      - 'scripts/evaluate_business.py'
+      - 'scripts/manual_agent_test.py'
+      - 'scripts/evaluate_agent.py'
       - 'scripts/requirements.txt'
       - 'tests/test_foundry_datasets.py'
       - 'tests/test_business_dataset.py'
+      - 'tests/test_evaluate_agent.py'
+      - 'tests/test_evaluate_business.py'
+      - 'tests/test_manual_agent_test.py'
       - '.github/workflows/foundry-datasets.yml'
   push:
     branches: [main]
@@ -16,14 +24,22 @@ on:
       - 'evaluations/**'
       - 'scripts/foundry_datasets.py'
       - 'scripts/business_evaluation_datasets.py'
+      - 'scripts/business_evaluation_data.py'
+      - 'scripts/business_evaluation_runtime.py'
+      - 'scripts/evaluate_business.py'
+      - 'scripts/manual_agent_test.py'
+      - 'scripts/evaluate_agent.py'
       - 'scripts/requirements.txt'
       - 'tests/test_foundry_datasets.py'
       - 'tests/test_business_dataset.py'
+      - 'tests/test_evaluate_agent.py'
+      - 'tests/test_evaluate_business.py'
+      - 'tests/test_manual_agent_test.py'
       - '.github/workflows/foundry-datasets.yml'
   workflow_dispatch:
     inputs:
       operation:
-        description: Check committed JSONL or publish immutable Foundry dataset versions.
+        description: Check or publish the canonical six-case reference and judge controls.
         required: true
         type: choice
         default: check
@@ -49,6 +65,9 @@ jobs:
           python scripts/foundry_datasets.py check
           python -m unittest discover -s tests -p test_foundry_datasets.py -v
           python -m unittest discover -s tests -p test_business_dataset.py -v
+          python -m unittest discover -s tests -p test_evaluate_agent.py -v
+          python -m unittest discover -s tests -p test_evaluate_business.py -v
+          python -m unittest discover -s tests -p test_manual_agent_test.py -v
 
   publish:
     if: github.event_name == 'workflow_dispatch' && inputs.operation == 'publish' && github.ref == 'refs/heads/main' && github.repository == 'cpinotossi/cptdazagentprojectmanagment'
@@ -87,7 +106,7 @@ jobs:
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - run: python -m pip install -r scripts/requirements.txt
-      - name: Publish exactly the committed JSONL files
+      - name: Publish canonical reference and separate judge controls
         run: python scripts/foundry_datasets.py publish --confirm
       - name: Record published versions
         run: |

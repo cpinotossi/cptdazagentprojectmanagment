@@ -11,12 +11,13 @@ on:
         options:
           - what-if
           - deploy
+          - activate
 
 permissions:
   contents: read
 
 concurrency:
-  group: azure-demo-logic-app-deployment
+  group: azure-demo-infrastructure
   cancel-in-progress: false
 
 jobs:
@@ -51,7 +52,7 @@ jobs:
           test "$AZURE_SUBSCRIPTION_ID" = '98525264-1eb4-493f-983d-16a330caa7f6'
           test "$TENANT_ID" = 'f71980b2-590a-4de9-90d5-6fbc867da951'
           test "$LOGIC_APP_RESOURCE_GROUP" = 'rg-projplan-demo'
-          case "$OPERATION" in what-if|deploy) ;; *) exit 2 ;; esac
+          case "$OPERATION" in what-if|deploy|activate) ;; *) exit 2 ;; esac
       - name: Azure login with GitHub OIDC
         uses: azure/login@7184910d9eb2b1c5e48f7073824a90609bb9b6d6 # v2
         with:
@@ -65,12 +66,15 @@ jobs:
           python3 -m unittest discover -s tests -p test_logic_app_consumption.py -v
           python3 -m unittest discover -s tests -p test_deployment_identity.py -v
       - name: Preview the Consumption module
+        env:
+          LOGIC_APP_PREVIEW_STATE: ${{ inputs.operation == 'activate' && 'Enabled' || 'Disabled' }}
         run: bash scripts/deploy_logic_app.sh what-if
       - name: Apply the Consumption module
-        if: inputs.operation == 'deploy'
+        if: inputs.operation == 'deploy' || inputs.operation == 'activate'
         env:
           CONFIRM_LOGIC_APP_DEPLOYMENT: 'yes'
-        run: bash scripts/deploy_logic_app.sh deploy
+          CONFIRM_LOGIC_APP_ACTIVATION: ${{ inputs.operation == 'activate' && 'yes' || 'no' }}
+        run: bash scripts/deploy_logic_app.sh "$OPERATION"
       - name: Verify the deployed workflow remains disabled
         if: inputs.operation == 'deploy'
         run: |
@@ -89,5 +93,7 @@ jobs:
             printf 'Operation: `%s`\n\n' "$OPERATION"
             printf 'Commit: `%s`\n\n' "$GITHUB_SHA"
             printf 'Target: `%s / %s`\n\n' "$AZURE_SUBSCRIPTION_ID" "$LOGIC_APP_RESOURCE_GROUP"
-            printf 'No Fabric imports, agent publication or workflow activation.\n'
+            printf 'No Fabric imports, item permission grants or agent publication.\n'
+            printf 'Activation only enables manual tests; delegated Fabric user authentication is required per request.\n'
+            printf 'No runtime smoke test or business acceptance is performed by this deployment job.\n'
           } >> "$GITHUB_STEP_SUMMARY"

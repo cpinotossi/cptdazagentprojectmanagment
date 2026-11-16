@@ -9,16 +9,16 @@ from pathlib import Path
 
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import TestingCriterionAzureAIEvaluator
-from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import AzureCliCredential
 from openai import OpenAI
 from openai.types import EvalCreateResponse
 from openai.types.evals import RunCreateResponse, RunRetrieveResponse
 
 from setup_agent import AGENT_NAME
+from foundry_datasets import REFERENCE_NAME, REFERENCE_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASET_NAME = "project-planning-business-checks"
+DATASET_NAME = REFERENCE_NAME
 EVALUATOR = "builtin.groundedness"
 THRESHOLD = 3
 
@@ -121,16 +121,9 @@ def create_run(
     if not evaluator.version:
         raise ValueError("Groundedness evaluator did not return a version")
 
-    version = digest[:16]
-    try:
-        dataset = project.datasets.get(name=DATASET_NAME, version=version)
-    except ResourceNotFoundError:
-        dataset = project.datasets.upload_file(
-            name=DATASET_NAME, version=version, file_path=str(dataset_path),
-        )
-    if not dataset.id:
-        raise ValueError("Uploaded dataset has no asset ID")
-    print(f"Dataset: {dataset.name} version {dataset.version} ({len(cases)} cases)", flush=True)
+    from business_evaluation_datasets import register_file
+
+    dataset = register_file(project, DATASET_NAME, dataset_path)
 
     # Azure evaluator and agent-target schemas extend the standard OpenAI request types.
     evaluation = client.post(
@@ -142,7 +135,7 @@ def create_run(
     print(f"Evaluation: {evaluation.id}", flush=True)
     run = client.post(
         f"/evals/{evaluation.id}/runs", cast_to=RunCreateResponse,
-        body=run_body(dataset.id, agent.name, agent.version),
+        body=run_body(dataset["id"], agent.name, agent.version),
     )
     if not isinstance(run, RunCreateResponse):
         raise TypeError("Unexpected evaluation run creation response")
@@ -152,7 +145,7 @@ def create_run(
         "project_endpoint": endpoint,
         "agent": {"name": agent.name, "version": agent.version},
         "dataset": {
-            "id": dataset.id, "name": dataset.name, "version": dataset.version,
+            "id": dataset["id"], "name": dataset["name"], "version": dataset["version"],
             "source": str(dataset_path.resolve()), "sha256": digest, "case_count": len(cases),
         },
         "evaluator": {
@@ -214,7 +207,7 @@ def main() -> None:
     parser.add_argument("--agent", default=AGENT_NAME)
     parser.add_argument("--agent-version")
     parser.add_argument("--judge-model", default="gpt-4.1")
-    parser.add_argument("--dataset", type=Path, default=ROOT / "evaluations/business_tests.jsonl")
+    parser.add_argument("--dataset", type=Path, default=REFERENCE_PATH)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "evaluations/runs")
     parser.add_argument("--timeout", type=int, default=1800)
     parser.add_argument("--resume", type=Path)

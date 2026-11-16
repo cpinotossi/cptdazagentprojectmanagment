@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "APP_KIND": "workflowapp",
+    "ProjectDirectoryPath": "/home/ga1/cptdazagentprojectmanagment/logicapps",
+    "WORKFLOWS_AUTHENTICATION_METHOD": "managedServiceIdentity",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "FUNCTIONS_INPROC_NET8_ENABLED": "1",
+    "AzureWebJobsSecretStorageType": "Files"
+  }
+}

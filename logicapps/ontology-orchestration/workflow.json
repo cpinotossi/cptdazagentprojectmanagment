@@ -1,7 +1,16 @@
 {
   "definition": {
     "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-    "contentVersion": "1.0.0.0",
+    "contentVersion": "3.0.0.0",
+    "parameters": {
+      "runtimeIdentityResourceId": { "type": "String" },
+      "workspaceId": { "type": "String" },
+      "ontologyId": { "type": "String" },
+      "foundryProjectEndpoint": { "type": "String" },
+      "modelDeployment": { "type": "String" },
+      "rewritePrompt": { "type": "String" },
+      "validationPrompt": { "type": "String" }
+    },
     "triggers": {
       "When_a_request_is_received": {
         "type": "Request",
@@ -11,52 +20,349 @@
           "schema": {
             "type": "object",
             "properties": {
-              "query": {
-                "type": "string",
-                "minLength": 1
-              },
-              "context": {
-                "type": "string"
-              }
+              "query": { "type": "string", "minLength": 1, "maxLength": 10000 },
+              "fabricAccessToken": { "type": "string", "minLength": 1 },
+              "context": { "type": "string" }
             },
-            "required": ["query"],
+            "required": ["query", "fabricAccessToken"],
             "additionalProperties": false
           }
-        }
+        },
+        "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } }
       }
     },
     "actions": {
-      "Reject_unconfigured_integration": {
-        "type": "Response",
-        "kind": "Http",
-        "inputs": {
-          "statusCode": 503,
-          "headers": {
-            "Content-Type": "application/json"
-          },
-          "body": {
-            "error": {
-              "code": "OntologyIntegrationNotConfigured",
-              "message": "Preparation scaffold only. Delegated Fabric authentication, agent integration and mandatory orchestration stages have not been implemented. No business assessment was performed."
-            },
-            "runId": "@workflow().run.name"
-          }
-        },
+      "Initialize_stage": {
+        "type": "InitializeVariable",
+        "inputs": { "variables": [{ "name": "stage", "type": "string", "value": "fabric-iq-metadata" }] },
         "runAfter": {}
       },
-      "Fail_unconfigured_run": {
-        "type": "Terminate",
-        "inputs": {
-          "runStatus": "Failed",
-          "runError": {
-            "code": "OntologyIntegrationNotConfigured",
-            "message": "The orchestration is not ready for activation."
+          "Orchestrate": {
+            "type": "Scope",
+            "runAfter": { "Initialize_stage": ["Succeeded"] },
+            "actions": {
+              "List_ontology_entities": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "@concat('https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/', parameters('workspaceId'), '/items/', parameters('ontologyId'), '/ontologyEndpoint')",
+                  "headers": {
+                    "Authorization": "@concat('Bearer ', triggerBody()['fabricAccessToken'])",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream"
+                  },
+                  "body": { "jsonrpc": "2.0", "id": "entities", "method": "tools/call", "params": { "name": "list_ontology_entities", "arguments": {} } },
+                  "retryPolicy": { "type": "none" }
+                },
+                "operationOptions": "DisableAsyncPattern",
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } },
+                "runAfter": {}
+              },
+              "List_ontology_rules": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "@concat('https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/', parameters('workspaceId'), '/items/', parameters('ontologyId'), '/ontologyEndpoint')",
+                  "headers": {
+                    "Authorization": "@concat('Bearer ', triggerBody()['fabricAccessToken'])",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream"
+                  },
+                  "body": { "jsonrpc": "2.0", "id": "rules", "method": "tools/call", "params": { "name": "list_ontology_rules", "arguments": {} } },
+                  "retryPolicy": { "type": "none" }
+                },
+                "operationOptions": "DisableAsyncPattern",
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } },
+                "runAfter": { "List_ontology_entities": ["Succeeded"] }
+              },
+              "Check_metadata": {
+                "type": "If",
+                "expression": "@and(equals(body('List_ontology_entities')?['jsonrpc'], '2.0'), equals(body('List_ontology_entities')?['id'], 'entities'), empty(body('List_ontology_entities')?['error']), equals(body('List_ontology_entities')?['result']?['isError'], false), not(empty(body('List_ontology_entities')?['result']?['structuredContent']?['values'])), equals(body('List_ontology_rules')?['jsonrpc'], '2.0'), equals(body('List_ontology_rules')?['id'], 'rules'), empty(body('List_ontology_rules')?['error']), equals(body('List_ontology_rules')?['result']?['isError'], false), contains(coalesce(body('List_ontology_rules')?['result']?['structuredContent'], json('{}')), 'values'), lessOrEquals(length(string(body('List_ontology_entities'))), 120000), lessOrEquals(length(string(body('List_ontology_rules'))), 120000))",
+                "runAfter": { "List_ontology_rules": ["Succeeded"] },
+                "actions": {},
+                "else": {
+                  "actions": {
+                    "Reject_metadata": {
+                      "type": "Response", "kind": "Http", "operationOptions": "Asynchronous",
+                      "inputs": { "statusCode": 422, "body": { "error": { "code": "InvalidOntologyMetadata", "stage": "fabric-iq-metadata", "message": "Fabric IQ metadata failed, is incomplete or exceeds the supported size." }, "runId": "@workflow().run.name" } },
+                      "runAfter": {}
+                    },
+                    "Fail_metadata": {
+                      "type": "Terminate",
+                      "inputs": { "runStatus": "Failed", "runError": { "code": "InvalidOntologyMetadata", "message": "Cannot rewrite without complete metadata." } },
+                      "runAfter": { "Reject_metadata": ["Succeeded"] }
+                    }
+                  }
+                }
+              },
+              "Parse_entities": {
+                "type": "ParseJson",
+                "inputs": {
+                  "content": "@body('List_ontology_entities')['result']['structuredContent']",
+                  "schema": { "type": "object", "required": ["values"], "properties": { "values": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "minLength": 1 } } } } } }
+                },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs"] } },
+                "runAfter": { "Check_metadata": ["Succeeded"] }
+              },
+              "Parse_rules": {
+                "type": "ParseJson",
+                "inputs": {
+                  "content": "@body('List_ontology_rules')['result']['structuredContent']",
+                  "schema": { "type": "object", "required": ["values"], "properties": { "values": { "type": "array", "items": { "type": "object", "required": ["lineageTag", "name", "statement"], "properties": { "lineageTag": { "type": "string", "minLength": 1 }, "name": { "type": "string", "minLength": 1 }, "statement": { "type": "string", "minLength": 1 } } } } } }
+                },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs"] } },
+                "runAfter": { "Parse_entities": ["Succeeded"] }
+              },
+              "Rule_ids": {
+                "type": "Select",
+                "inputs": { "from": "@body('Parse_rules')['values']", "select": "@item()['lineageTag']" },
+                "runAfter": { "Parse_rules": ["Succeeded"] }
+              },
+              "Entity_names": {
+                "type": "Select",
+                "inputs": { "from": "@body('Parse_entities')['values']", "select": "@item()['name']" },
+                "runAfter": { "Rule_ids": ["Succeeded"] }
+              },
+              "Begin_rewrite": {
+                "type": "SetVariable",
+                "inputs": { "name": "stage", "value": "entity-matching-and-query-rewrite" },
+                "runAfter": { "Entity_names": ["Succeeded"] }
+              },
+              "Rewrite_query": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "@concat(parameters('foundryProjectEndpoint'), '/openai/v1/responses')",
+                  "authentication": { "type": "ManagedServiceIdentity", "identity": "@parameters('runtimeIdentityResourceId')", "audience": "https://ai.azure.com" },
+                  "body": {
+                    "model": "@parameters('modelDeployment')", "store": false, "temperature": 0, "max_output_tokens": 5000,
+                    "input": [
+                      { "type": "message", "role": "system", "content": "@parameters('rewritePrompt')" },
+                      { "type": "message", "role": "user", "content": "@string(addProperty(addProperty(addProperty(json('{}'), 'originalQuestion', triggerBody()['query']), 'entities', body('Parse_entities')['values']), 'rules', body('Parse_rules')['values']))" }
+                    ],
+                    "text": { "format": { "type": "json_schema", "name": "ontology_query_rewrite", "strict": true, "schema": {
+                      "type": "object", "additionalProperties": false,
+                      "properties": {
+                        "resolved": { "type": "boolean" },
+                        "rewrittenQuestion": { "type": "string" },
+                        "matchedEntities": { "type": "array", "items": { "type": "string" } },
+                        "rules": { "type": "array", "items": { "type": "object", "additionalProperties": false, "properties": {
+                          "ruleId": { "type": "string" }, "status": { "type": "string", "enum": ["potentially-applicable", "not-applicable", "unresolved"] }, "reason": { "type": "string" }
+                        }, "required": ["ruleId", "status", "reason"] } }
+                      }, "required": ["resolved", "rewrittenQuestion", "matchedEntities", "rules"]
+                    } } }
+                  }
+                },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } },
+                "runAfter": { "Begin_rewrite": ["Succeeded"] }
+              },
+              "Parse_rewrite": {
+                "type": "ParseJson",
+                "inputs": {
+                  "content": "@json(body('Rewrite_query')['output'][0]['content'][0]['text'])",
+                  "schema": {
+                    "type": "object", "required": ["resolved", "rewrittenQuestion", "matchedEntities", "rules"],
+                    "properties": {
+                      "resolved": { "type": "boolean" },
+                      "rewrittenQuestion": { "type": "string", "minLength": 1 },
+                      "matchedEntities": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                      "rules": { "type": "array", "items": { "type": "object", "required": ["ruleId", "status", "reason"], "properties": {
+                        "ruleId": { "type": "string", "minLength": 1 }, "status": { "type": "string", "enum": ["potentially-applicable", "not-applicable", "unresolved"] }, "reason": { "type": "string", "minLength": 1 }
+                      } } }
+                    }
+                  }
+                },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs"] } },
+                "runAfter": { "Rewrite_query": ["Succeeded"] }
+              },
+              "Rewritten_rule_ids": {
+                "type": "Select",
+                "inputs": { "from": "@body('Parse_rewrite')['rules']", "select": "@item()['ruleId']" },
+                "runAfter": { "Parse_rewrite": ["Succeeded"] }
+              },
+              "Unresolved_rules": {
+                "type": "Query",
+                "inputs": { "from": "@body('Parse_rewrite')['rules']", "where": "@equals(item()['status'], 'unresolved')" },
+                "runAfter": { "Rewritten_rule_ids": ["Succeeded"] }
+              },
+              "Build_ontology_request": {
+                "type": "Compose",
+                "inputs": "@concat('Answer the complete original question below. The clarification only resolves ontology terminology; it must not replace, narrow or contradict the original. Retrieve evidence through the ontology bindings and apply every applicable current ontology rule. Preserve uncertainty and cite supporting sources.', decodeUriComponent('%0A%0A'), 'ORIGINAL QUESTION:', decodeUriComponent('%0A'), triggerBody()['query'], decodeUriComponent('%0A%0A'), 'ONTOLOGY-GROUNDED CLARIFICATION:', decodeUriComponent('%0A'), body('Parse_rewrite')['rewrittenQuestion'])",
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs"] } },
+                "runAfter": { "Unresolved_rules": ["Succeeded"] }
+              },
+              "Check_rewrite": {
+                "type": "If",
+                "expression": "@and(equals(body('Rewrite_query')['status'], 'completed'), body('Parse_rewrite')['resolved'], empty(body('Unresolved_rules')), equals(length(body('Rule_ids')), length(union(body('Rule_ids'), body('Rule_ids')))), equals(length(body('Rewritten_rule_ids')), length(body('Rule_ids'))), equals(length(intersection(body('Rewritten_rule_ids'), body('Rule_ids'))), length(body('Rule_ids'))), equals(length(intersection(body('Parse_rewrite')['matchedEntities'], body('Entity_names'))), length(body('Parse_rewrite')['matchedEntities'])), lessOrEquals(length(outputs('Build_ontology_request')), 10000))",
+                "runAfter": { "Build_ontology_request": ["Succeeded"] },
+                "actions": {},
+                "else": {
+                  "actions": {
+                    "Reject_rewrite": {
+                      "type": "Response", "kind": "Http", "operationOptions": "Asynchronous",
+                      "inputs": { "statusCode": 422, "body": { "error": { "code": "InvalidOntologyRewrite", "stage": "entity-matching-and-query-rewrite", "message": "Rewrite is unresolved, rule coverage or entity matching is invalid, or the combined request exceeds 10000 characters." }, "runId": "@workflow().run.name" } },
+                      "runAfter": {}
+                    },
+                    "Fail_rewrite": {
+                      "type": "Terminate",
+                      "inputs": { "runStatus": "Failed", "runError": { "code": "InvalidOntologyRewrite", "message": "No ontology query was executed." } },
+                      "runAfter": { "Reject_rewrite": ["Succeeded"] }
+                    }
+                  }
+                }
+              },
+              "Begin_ontology_query": {
+                "type": "SetVariable",
+                "inputs": { "name": "stage", "value": "ask-ontology" },
+                "runAfter": { "Check_rewrite": ["Succeeded"] }
+              },
+              "Ask_ontology": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "@concat('https://api.fabric.microsoft.com/v1/mcp/dataPlane/workspaces/', parameters('workspaceId'), '/items/', parameters('ontologyId'), '/ontologyEndpoint')",
+                  "headers": {
+                    "Authorization": "@concat('Bearer ', triggerBody()['fabricAccessToken'])",
+                    "Content-Type": "application/json",
+                    "Accept": "application/json, text/event-stream"
+                  },
+                  "body": { "jsonrpc": "2.0", "id": "answer", "method": "tools/call", "params": { "name": "ask_ontology", "arguments": { "request": "@outputs('Build_ontology_request')" } } },
+                  "retryPolicy": { "type": "none" }
+                },
+                "operationOptions": "DisableAsyncPattern",
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } },
+                "runAfter": { "Begin_ontology_query": ["Succeeded"] }
+              },
+              "Check_ontology_result": {
+                "type": "If",
+                "expression": "@and(equals(body('Ask_ontology')?['jsonrpc'], '2.0'), equals(body('Ask_ontology')?['id'], 'answer'), empty(body('Ask_ontology')?['error']), equals(body('Ask_ontology')?['result']?['isError'], false), not(empty(body('Ask_ontology')?['result']?['content'])), lessOrEquals(length(string(body('Ask_ontology'))), 120000))",
+                "runAfter": { "Ask_ontology": ["Succeeded"] },
+                "actions": {},
+                "else": {
+                  "actions": {
+                    "Reject_ontology_result": {
+                      "type": "Response", "kind": "Http", "operationOptions": "Asynchronous",
+                      "inputs": { "statusCode": 422, "body": { "error": { "code": "OntologyQueryFailed", "stage": "ask-ontology", "message": "Fabric IQ returned a protocol/tool error, no content or an oversized result." }, "runId": "@workflow().run.name" } },
+                      "runAfter": {}
+                    },
+                    "Fail_ontology_result": {
+                      "type": "Terminate",
+                      "inputs": { "runStatus": "Failed", "runError": { "code": "OntologyQueryFailed", "message": "No successful ontology answer." } },
+                      "runAfter": { "Reject_ontology_result": ["Succeeded"] }
+                    }
+                  }
+                }
+              },
+              "Answer_text_parts": {
+                "type": "Query",
+                "inputs": { "from": "@body('Ask_ontology')['result']['content']", "where": "@equals(item()?['type'], 'text')" },
+                "runAfter": { "Check_ontology_result": ["Succeeded"] }
+              },
+              "Answer_text_values": {
+                "type": "Select",
+                "inputs": { "from": "@body('Answer_text_parts')", "select": "@item()['text']" },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } },
+                "runAfter": { "Answer_text_parts": ["Succeeded"] }
+              },
+              "Begin_validation": {
+                "type": "SetVariable",
+                "inputs": { "name": "stage", "value": "answer-validation" },
+                "runAfter": { "Answer_text_values": ["Succeeded"] }
+              },
+              "Validate_answer": {
+                "type": "Http",
+                "inputs": {
+                  "method": "POST",
+                  "uri": "@concat(parameters('foundryProjectEndpoint'), '/openai/v1/responses')",
+                  "authentication": { "type": "ManagedServiceIdentity", "identity": "@parameters('runtimeIdentityResourceId')", "audience": "https://ai.azure.com" },
+                  "body": {
+                    "model": "@parameters('modelDeployment')", "store": false, "temperature": 0, "max_output_tokens": 5000,
+                    "input": [
+                      { "type": "message", "role": "system", "content": "@parameters('validationPrompt')" },
+                      { "type": "message", "role": "user", "content": "@string(addProperty(addProperty(addProperty(addProperty(addProperty(json('{}'), 'originalQuestion', triggerBody()['query']), 'rewrite', body('Parse_rewrite')), 'entities', body('Parse_entities')['values']), 'rules', body('Parse_rules')['values']), 'ontologyResult', body('Ask_ontology')['result']))" }
+                    ],
+                    "text": { "format": { "type": "json_schema", "name": "ontology_answer_validation", "strict": true, "schema": {
+                      "type": "object", "additionalProperties": false,
+                      "properties": {
+                        "valid": { "type": "boolean" },
+                        "issues": { "type": "array", "items": { "type": "string" } },
+                        "rules": { "type": "array", "items": { "type": "object", "additionalProperties": false, "properties": {
+                          "ruleId": { "type": "string" }, "status": { "type": "string", "enum": ["applied", "not-applicable", "unresolved"] }, "reason": { "type": "string" }
+                        }, "required": ["ruleId", "status", "reason"] } }
+                      }, "required": ["valid", "issues", "rules"]
+                    } } }
+                  }
+                },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs", "outputs"] } },
+                "runAfter": { "Begin_validation": ["Succeeded"] }
+              },
+              "Parse_validation": {
+                "type": "ParseJson",
+                "inputs": {
+                  "content": "@json(body('Validate_answer')['output'][0]['content'][0]['text'])",
+                  "schema": { "type": "object", "required": ["valid", "issues", "rules"], "properties": {
+                    "valid": { "type": "boolean" }, "issues": { "type": "array", "items": { "type": "string" } },
+                    "rules": { "type": "array", "items": { "type": "object", "required": ["ruleId", "status", "reason"], "properties": {
+                      "ruleId": { "type": "string", "minLength": 1 }, "status": { "type": "string", "enum": ["applied", "not-applicable", "unresolved"] }, "reason": { "type": "string", "minLength": 1 }
+                    } } }
+                  } }
+                },
+                "runtimeConfiguration": { "secureData": { "properties": ["inputs"] } },
+                "runAfter": { "Validate_answer": ["Succeeded"] }
+              },
+              "Validated_rule_ids": {
+                "type": "Select",
+                "inputs": { "from": "@body('Parse_validation')['rules']", "select": "@item()['ruleId']" },
+                "runAfter": { "Parse_validation": ["Succeeded"] }
+              },
+              "Unresolved_validation_rules": {
+                "type": "Query",
+                "inputs": { "from": "@body('Parse_validation')['rules']", "where": "@equals(item()['status'], 'unresolved')" },
+                "runAfter": { "Validated_rule_ids": ["Succeeded"] }
+              },
+              "Check_validation": {
+                "type": "If",
+                "expression": "@and(equals(body('Validate_answer')['status'], 'completed'), body('Parse_validation')['valid'], empty(body('Parse_validation')['issues']), empty(body('Unresolved_validation_rules')), equals(length(body('Validated_rule_ids')), length(body('Rule_ids'))), equals(length(intersection(body('Validated_rule_ids'), body('Rule_ids'))), length(body('Rule_ids'))), not(empty(trim(join(body('Answer_text_values'), decodeUriComponent('%0A'))))))",
+                "runAfter": { "Unresolved_validation_rules": ["Succeeded"] },
+                "actions": {
+                  "Return_assessment": {
+                    "type": "Response", "kind": "Http", "operationOptions": "Asynchronous",
+                    "inputs": { "statusCode": 200, "body": {
+                      "response": "@join(body('Answer_text_values'), decodeUriComponent('%0A'))",
+                      "validation": "@body('Parse_validation')",
+                      "runId": "@workflow().run.name"
+                    } },
+                    "runtimeConfiguration": { "secureData": { "properties": ["inputs"] } },
+                    "runAfter": {}
+                  }
+                },
+                "else": {
+                  "actions": {
+                    "Reject_validation": {
+                      "type": "Response", "kind": "Http", "operationOptions": "Asynchronous",
+                      "inputs": { "statusCode": 422, "body": { "error": { "code": "OntologyAnswerValidationFailed", "stage": "answer-validation", "message": "Answer or rewrite failed completeness, source or rule validation." }, "runId": "@workflow().run.name" } },
+                      "runAfter": {}
+                    },
+                    "Fail_validation": {
+                      "type": "Terminate",
+                      "inputs": { "runStatus": "Failed", "runError": { "code": "OntologyAnswerValidationFailed", "message": "No validated answer returned." } },
+                      "runAfter": { "Reject_validation": ["Succeeded"] }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "Return_stage_failure": {
+            "type": "Response", "kind": "Http", "operationOptions": "Asynchronous",
+            "inputs": { "statusCode": 502, "body": { "error": { "code": "OrchestrationStageFailed", "message": "A mandatory stage failed. Check delegated Fabric authentication and the named action; no assessment was returned.", "stage": "@variables('stage')" }, "runId": "@workflow().run.name" } },
+            "runAfter": { "Orchestrate": ["Failed", "TimedOut"] }
+          },
+          "Fail_stage": {
+            "type": "Terminate",
+            "inputs": { "runStatus": "Failed", "runError": { "code": "OrchestrationStageFailed", "message": "A mandatory orchestration stage failed." } },
+            "runAfter": { "Return_stage_failure": ["Succeeded"] }
           }
-        },
-        "runAfter": {
-          "Reject_unconfigured_integration": ["Succeeded"]
-        }
-      }
     },
     "outputs": {}
   }

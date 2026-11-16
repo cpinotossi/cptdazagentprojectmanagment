@@ -15,14 +15,22 @@ from azure.identity import AzureCliCredential
 from openai import OpenAI, OpenAIError
 
 from evaluate_agent import save_result
+from foundry_datasets import REFERENCE_PATH, REFERENCE_SOURCE
 
 ROOT = Path(__file__).resolve().parents[1]
-DATASET = ROOT / "evaluations/business_tests.json"
+DATASET = REFERENCE_PATH
 
 
 def load_dataset(path: Path) -> tuple[list[dict], str]:
     raw = path.read_bytes()
-    cases = json.loads(raw)["test_cases"]
+    if path.suffix == ".jsonl":
+        cases = [json.loads(line) for line in raw.decode("utf-8").splitlines() if line.strip()]
+        for case in cases:
+            for field in ("criteria", "critical_errors"):
+                if isinstance(case.get(field), str):
+                    case[field] = json.loads(case[field])
+    else:
+        cases = json.loads(raw)["test_cases"]
     if not cases or len({case["id"] for case in cases}) != len(cases):
         raise ValueError("Dataset must have nonempty, unique cases")
     for case in cases:
@@ -242,7 +250,7 @@ def summarize(root: Path, cases: list[dict], digest: str, agents: list[str]) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dataset", type=Path, default=DATASET)
+    parser.add_argument("--dataset", type=Path)
     commands = parser.add_subparsers(dest="command", required=True)
     capture = commands.add_parser("capture", help="Direct Responses API calls, no Foundry evaluation")
     capture.add_argument("--endpoint", required=True)
@@ -253,11 +261,12 @@ def main() -> None:
     summary = commands.add_parser("summarize", help="Summarize edited human review sheets")
     summary.add_argument("--input-dir", type=Path, required=True)
     summary.add_argument("--agents", nargs="+", required=True, help="Pinned name:version pairs")
-    export = commands.add_parser("export", help="Generate the Foundry JSONL projection")
-    export.add_argument("--output", type=Path, default=ROOT / "evaluations/business_tests.jsonl")
+    export = commands.add_parser("export", help="Generate the canonical Foundry JSONL")
+    export.add_argument("--output", type=Path, default=REFERENCE_PATH)
     validate = commands.add_parser("validate-capture", help="Reject an incomplete Fabric IQ handoff in a saved capture")
     validate.add_argument("path", type=Path)
     args = parser.parse_args()
+    args.dataset = args.dataset or (REFERENCE_SOURCE if args.command == "export" else DATASET)
     if args.command == "validate-capture":
         record = json.loads(args.path.read_text(encoding="utf-8"))
         if record["status"] != "captured" or record["response"].get("status") != "completed":
@@ -267,12 +276,10 @@ def main() -> None:
         return
     cases, digest = load_dataset(args.dataset)
     if args.command == "export":
-        from foundry_datasets import jsonl_bytes
+        from foundry_datasets import jsonl_bytes, reference_rows
 
-        args.output.write_bytes(jsonl_bytes([
-            {key: case[key] for key in ("id", "query", "context", "ground_truth")}
-            for case in cases
-        ]))
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_bytes(jsonl_bytes(reference_rows(cases)))
         print(f"Exported {len(cases)} cases to {args.output}")
     elif args.command == "summarize":
         report = summarize(args.input_dir, cases, digest, args.agents)

@@ -12,9 +12,10 @@ from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobClient
 
 from manual_agent_test import load_dataset
-from foundry_datasets import jsonl_bytes
-
-REFERENCE_NAME = "project-planning-business-reference"
+from foundry_datasets import (
+    CATALOG, REFERENCE_NAME, REFERENCE_PATH, REFERENCE_SOURCE,
+    check_datasets, jsonl_bytes, render_datasets,
+)
 
 
 def register_file(project: AIProjectClient, name: str, path: Path) -> dict:
@@ -33,8 +34,10 @@ def register_file(project: AIProjectClient, name: str, path: Path) -> dict:
 
 
 def publish_reference(project: AIProjectClient, path: Path) -> dict:
-    load_dataset(path)
-    return register_file(project, REFERENCE_NAME, path)
+    if path.resolve() != REFERENCE_SOURCE.resolve():
+        raise ValueError(f"Publish the canonical reference source only: {REFERENCE_SOURCE}")
+    check_datasets(render_datasets(CATALOG))
+    return register_file(project, REFERENCE_NAME, REFERENCE_PATH)
 
 
 def download_reference(project: AIProjectClient, endpoint: str, manifest: Path) -> Path:
@@ -54,7 +57,8 @@ def download_reference(project: AIProjectClient, endpoint: str, manifest: Path) 
         content = blob.download_blob().readall()
     if hashlib.sha256(content).hexdigest() != asset["sha256"]:
         raise ValueError("Downloaded Foundry reference differs from its pinned hash")
-    snapshot = manifest.with_suffix(".data.json")
+    suffix = ".data.jsonl" if urlsplit(dataset.data_uri).path.endswith(".jsonl") else ".data.json"
+    snapshot = manifest.with_suffix(suffix)
     snapshot.write_bytes(content)
     load_dataset(snapshot)
     return snapshot

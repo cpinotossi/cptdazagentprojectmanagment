@@ -28,7 +28,7 @@ class FoundryDatasetCatalogTests(unittest.TestCase):
         self.source.write_text(json.dumps({"test_cases": [self.case]}))
         self.catalog = self.root / "datasets.json"
         self.entry = {
-            "name": "checks", "kind": "checks", "sources": ["cases.json"], "output": "checks.jsonl",
+            "name": "cases", "kind": "cases", "sources": ["cases.json"], "output": "cases.jsonl",
         }
         self.write_catalog([self.entry])
 
@@ -85,7 +85,30 @@ class FoundryDatasetCatalogTests(unittest.TestCase):
                 self.write_catalog(entries)
                 with self.assertRaises(ValueError):
                     datasets.render_datasets(self.catalog)
-        self.assertFalse((self.root / "checks.jsonl").exists())
+        self.assertFalse((self.root / "cases.jsonl").exists())
+
+    def test_reference_is_portal_compatible_and_round_trips_without_losing_criteria(self) -> None:
+        from manual_agent_test import load_dataset
+
+        item = datasets.render_datasets(self.catalog)[0]
+        item["path"].write_bytes(item["content"])
+        row = json.loads(item["content"])
+        self.assertIsInstance(row["criteria"], str)
+        self.assertIsInstance(row["critical_errors"], str)
+        restored, digest = load_dataset(item["path"])
+        self.assertEqual(restored, [self.case])
+        self.assertEqual(digest, item["sha256"])
+        self.assertNotIn("response", row)
+
+    def test_notebook_and_catalog_publication_use_the_same_checked_file(self) -> None:
+        from business_evaluation_datasets import publish_reference
+
+        project = Mock()
+        with patch("business_evaluation_datasets.register_file") as register:
+            publish_reference(project, datasets.REFERENCE_SOURCE)
+        register.assert_called_once_with(project, datasets.REFERENCE_NAME, datasets.REFERENCE_PATH)
+        with self.assertRaisesRegex(ValueError, "canonical reference"):
+            publish_reference(project, self.source)
 
     def test_stale_committed_jsonl_blocks_upload_before_cloud_calls(self) -> None:
         items = datasets.render_datasets(self.catalog)
@@ -103,13 +126,13 @@ class FoundryDatasetCatalogTests(unittest.TestCase):
         items = datasets.render_datasets(self.catalog)
         items[0]["path"].write_bytes(items[0]["content"])
         digest = items[0]["sha256"]
-        asset = {"id": "asset-id", "name": "checks", "version": digest[:16], "sha256": digest}
+        asset = {"id": "asset-id", "name": "cases", "version": digest[:16], "sha256": digest}
         project = Mock()
         project.datasets.get.return_value = SimpleNamespace(id="asset-id")
         manifest = self.root / "release.json"
         with patch("business_evaluation_datasets.register_file", return_value=asset) as register:
             result = datasets.publish_datasets(project, items, manifest, "endpoint")
-        register.assert_called_once_with(project, "checks", items[0]["path"])
+        register.assert_called_once_with(project, "cases", items[0]["path"])
         self.assertEqual(result["status"], "published")
         self.assertEqual(json.loads(manifest.read_text())["datasets"][0]["version"], digest[:16])
 
