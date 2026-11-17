@@ -1,0 +1,477 @@
+{
+  "schema_version": 1,
+  "label_status": "proposed",
+  "note": "Local-only judge calibration fixture; never uploaded to Foundry. Real answers come from the saved paired run (Fabric IQ v8, Basic v6, evaluator v11). Variants are exact text edits of a real answer. expected_pass and expected_failed are proposed labels pending human confirmation and are never passed to the judge.",
+  "answers": [
+    {
+      "id": "B-001-BASIC",
+      "case_id": "B-001",
+      "source": {
+        "agent": "project-planning-baseline",
+        "version": 6,
+        "run": "evalrun_792d4e28e8b24e8cb5524a9acd265f44"
+      },
+      "expected_pass": false,
+      "expected_failed": [
+        "year",
+        "rating",
+        "escalation",
+        "wrong_deadline"
+      ],
+      "borderline": false,
+      "rationale": "Eskalationsfrist 31.01.2027 statt ein Arbeitstag; Februar nicht als 2027 aufgeloest; nur Warnung statt kritisch.",
+      "response": "**Projekt-ID und -Name:**  \nP-100 – Office Building Hamburg\n\n**Verantwortliche Projektleitung:**  \nAnna Becker (anna.becker@example.com)\n\n---\n\n### Einstufung  \n**Einstufung:** Kritische Terminabweichung möglich (Warnung / Risikohinweis)\n\n---\n\n### Begründung  \nDie Projektunterlagen nennen als bindenden Fertigstellungstermin den 15.12.2027, da am 01.01.2028 der Hauptmieter einzieht ([documents[DocId]: P-100_specification]). Die aktuelle E-Mail meldet, dass sich die Baugenehmigung auf Februar verschiebt. Vertraglich war die Genehmigung spätestens zum 31.01.2027 eingeplant ([documents[DocId]: P-100_offer]); Verzögerungen könnten den Projektverlauf gefährden, insbesondere den Start nachgelagerter Bauphasen. Bereits am 03.11.2026 verwies der Kunde explizit auf mögliche Vertragsstrafen und bestand auf termingerechter Fertigstellung ([emails[MailId]: E-2]).\n\n---\n\n### Handlungsbedarf  \n- Umgehende Überprüfung und Anpassung des Terminplans in Hinblick auf Puffer und kritische Pfade  \n- Nachweisbare Neuberechnung der Auswirkungen der späteren Baugenehmigung auf alle Folgegewerke  \n- Transparente Kommunikation mit dem Auftraggeber über realistische Szenarien und verbleibende Risiken  \n- Im Bedarfsfall: Vorbereitung einer Meldung über mögliche Verzögerungen und deren Folgen  \n- Prüfung, ob weitere Beschleunigungsmaßnahmen erforderlich oder möglich sind, um Vertragsstrafen zu vermeiden\n\n---\n\n### Erforderliche Eskalationsfrist  \n**Maximal zu eskalieren bis 31. Januar 2027:**  \nDies entspricht dem ursprünglich vereinbarten spätesten Termin für die Baugenehmigung ([documents[DocId]: P-100_offer]). Spätestens zu diesem Datum muss die Projektleitung gegenüber dem Auftraggeber, internen Gremien und ggf. weiteren Partnern belegen können, dass der Gesamttermin haltbar ist oder umgehend Gegenmaßnahmen einleiten und formell melden.\n\n---\n\n### Belegte Folgen  \n- Fertigstellungstermin 15.12.2027 ist Vertragsbestandteil, zwingend wegen Hauptmietereinzug am 01.01.2028 ([documents[DocId]: P-100_specification])\n- Vertragsstrafe bei Verzögerung: 0,2 %/Arbeitstag, max. 5 % ([documents[DocId]: P-100_contract])\n- Kunde hat das Risiko und die Konsequenzen einer Verzögerung wiederholt betont ([emails[MailId]: E-2])\n\n---\n\n### Risiken  \n- Tatsächlicher Zeitpuffer vor Endtermin ggf. geringer als vom Kunden angenommen  \n- Nachgelagerte Bauphasen könnten vom verspäteten Bauantrag betroffen sein  \n- Vertragsstrafe oder schlimmstenfalls Kündigungsrecht des Kunden bei erheblichem Verzug ([documents[DocId]: P-100_contract])\n\n---\n\n**Zusammenfassung:**  \nSofortige Prüfung der Termin- und Risikoauswirkungen ist zwingend. Die weitere Einhaltung des Endtermins muss intern bis zum 31.01.2027 belastbar belegt oder (bei Verschiebung) frühestmöglich in die Eskalation gebracht werden."
+    },
+    {
+      "id": "B-001-IQ",
+      "case_id": "B-001",
+      "source": {
+        "agent": "project-planning-agent",
+        "version": 8,
+        "run": "evalrun_02c607f278c54938804de61caeb4faa0"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": false,
+      "rationale": "Alle Pflichtpunkte, Frist ein Werktag, Risiken von belegten Folgen getrennt.",
+      "response": "Bewertung der E-Mail nach Projektunterlagen und internen Regeln:\n\n- Projekt-ID: P-100\n- Projektname: Office Building Hamburg\n- Verantwortliche Projektleitung: Anna Becker\n- E-Mail (Projektleitung): anna.becker@example.com\n\nEinstufung: kritisch\n\nBegründung:\nDie E-Mail kündigt an, dass die Baugenehmigung voraussichtlich erst im Februar 2027 kommt. Laut Projektunterlagen wurde jedoch als zentrale Annahme festgelegt, dass die Baugenehmigung bis spätestens 2027-01-31 vorliegt. Durch die Verzögerung ist diese Annahme nicht mehr haltbar. Obwohl der Auftraggeber noch ausreichenden Puffer sieht, gefährdet eine spätere Genehmigung unmittelbar den Projektablauf – besonders, da ein verbindlicher Fertigstellungstermin zum 2027-12-15 vereinbart wurde.\n\nBelegte Folgen:\n- Die Angebotsannahme, dass die Genehmigung bis 2027-01-31 vorliegt, ist obsolet.\n- Das Projekt muss mit einem fixen Fertigstellungstermin 2027-12-15 weitergeführt werden.\n\nRisiken (von belegten Folgen zu unterscheiden!):\n- Terminverdichtung und Zeitdruck im weiteren Verlauf.\n- Gefährdung des Gesamttermins, sofern der spätere Genehmigungszeitpunkt kritische Pfade berührt.\n- Bei tatsächlichem Verzug können vertragliche Sanktionen drohen.\n\nHandlungsbedarf:\n- Sofortige Prüfung des Genehmigungs- und Terminplans.\n- Abstimmung mit der Projektleitung zu möglichen Gegenmaßnahmen.\n- Bewertung, ob Abläufe oder Puffer neu strukturiert werden müssen.\n\nErforderliche Eskalationsfrist:\n- Innerhalb von 1 Werktag, d.h. bei Eingang am 2026-11-16 spätestens bis 2026-11-17.\n\nQuelle: Bewertung nach Projektunterlagen, Angebotsannahmen und dokumentierten Prozessregeln ."
+    },
+    {
+      "id": "B-002-BASIC",
+      "case_id": "B-002",
+      "source": {
+        "agent": "project-planning-baseline",
+        "version": 6,
+        "run": "evalrun_792d4e28e8b24e8cb5524a9acd265f44"
+      },
+      "expected_pass": false,
+      "expected_failed": [
+        "period",
+        "comparison"
+      ],
+      "borderline": false,
+      "rationale": "Zeitraum ohne Jahre und kein Vergleich mit dem Projektstart 01.03.2027.",
+      "response": "**Projekt-ID und Name:**  \nP-200 – Residential Complex Munich\n\n**Verantwortliche Projektleitung:**  \nName: Ben Fischer  \nE-Mail: ben.fischer@example.com\n\n**Aufgelöster Zeitraum:**  \n20. Dezember bis einschließlich 3. Januar\n\n**Einstufung:**  \nInformation (keine Auswirkung auf Termine oder Leistungen)\n\n**Begründung:**  \nDie E-Mail teilt gemäß Wortlaut („Dies ist eine allgemeine Information; Änderungen an den vereinbarten Leistungen oder Terminen sind damit nicht verbunden.“) lediglich eine allgemeine Büroschließung mit, ohne Auswirkungen auf Projekttermine oder vertragliche Leistungen. Dies stimmt mit der bereits vorliegenden E-Mail vom 2026-11-02 mit gleichem Inhalt überein (siehe Mail-ID: E-4). In den Vertragsunterlagen und Terminplänen für Projekt P-200 gibt es keine Regelung, dass Bürozeiten des Auftraggebers direkte Auswirkungen auf den Projektablauf oder Fristen hätten.  \n\n**Eventuell erforderliche Eskalation:**  \nKeine Eskalation erforderlich. – Es handelt sich um eine reine Kenntnisnahme ohne Handlungsbedarf für Projektleitung oder Team.\n\n**Nachweise:**  \n- Mail-ID: E-4, Projekt P-200: Inhalt identisch mit neuer E-Mail  \n- Projektleitung laut projects-Tabelle: Ben Fischer (ben.fischer@example.com)  \n- Fristen und Leistungsumfang laut Vertrag P-200: Dokument-ID P-200_contract, keine Einschränkungen wegen Bürozeiten.  \n\n**Fazit:**  \nKein Handlungs- oder Eskalationsbedarf, nur zur internen Dokumentation aufnehmen."
+    },
+    {
+      "id": "B-002-IQ",
+      "case_id": "B-002",
+      "source": {
+        "agent": "project-planning-agent",
+        "version": 8,
+        "run": "evalrun_02c607f278c54938804de61caeb4faa0"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": false,
+      "rationale": "Zeitraum mit Jahren, Vergleich mit Projektstart, nicht kritisch, keine Eskalation.",
+      "response": "Bewertung der E-Mail\n\n- Projekt-ID: P-200\n- Projektname: Residential Complex Munich\n- Verantwortliche Projektleitung: Ben Fischer, ben.fischer@example.com\n- Aufgelöster Zeitraum der Abwesenheit/Schließung: 20.12.2026 bis einschließlich 03.01.2027 (lt. E-Mail und Datumseingang)\n- Einstufung: nicht kritisch\n- Begründung:\n  Der gemeldete Schließungszeitraum liegt vollständig vor dem offiziellen Projektzeitraum (01.03.2027 bis 30.06.2028) laut Projektunterlagen. Es besteht keine Überschneidung mit Projektbeginn oder Vertragslaufzeit. Zudem ist die Information ausdrücklich nur als Benachrichtigung und nicht als Änderungsmitteilung bezüglich Leistungen oder Terminen zu verstehen.\n- Eskalation: nicht erforderlich\n\nQuelle: Projektunterlagen und interne Regelwerke, Bewertung gemäß aktueller Aktenlage und Eingangsdokumentation ."
+    },
+    {
+      "id": "B-003-BASIC",
+      "case_id": "B-003",
+      "source": {
+        "agent": "project-planning-baseline",
+        "version": 6,
+        "run": "evalrun_792d4e28e8b24e8cb5524a9acd265f44"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": true,
+      "rationale": "Inhaltlich korrekt; die Formulierung 'Keine Ueberschreitung' bei Prognose A neben +500.000 EUR ist missverstaendlich.",
+      "response": "**1. Vertragsbudget für P-200:**  \nLaut Vertrag beträgt das Budget 5.000.000 EUR (Dokument ID: `P-200_contract`, Feld: `documents[BudgetEur]`).\n\n---\n\n**2. Berechnung der Budgetabweichung:**\n\n| Prognose    | Prognosesumme (EUR) | Abweichung (EUR) | Abweichung (%)     |\n|-------------|---------------------|------------------|--------------------|\n| Prognose A  |   5.500.000         |  500.000         |   10,00 %          |\n| Prognose B  |   5.550.000         |  550.000         |   11,00 %          |\n\nBerechnung Abweichung = (Prognosesumme – Vertragsbudget)  \nBerechnung Abweichung % = (Abweichung / Vertragsbudget) × 100\n\n---\n\n**3. Vertragliche Zustimmungspflicht:**  \nLaut Vertragsklausel:  \n*„Ein Überschreiten um mehr als 10 % erfordert eine schriftliche Zustimmung des Auftraggebers.“*  \n(Dokument ID: `P-200_contract`, Content & Feld: `documents[OverrunApprovalThresholdPercent]=10.0`)\n\n- **Prognose A:** +10 % → Keine Überschreitung, löst keine Zustimmungspflicht aus.\n- **Prognose B:** +11 % → Mehr als 10 % überschritten, löst Zustimmungspflicht aus.\n\n---\n\n**4. Wer muss zustimmen?**  \nZustimmungspflichtig ist laut Klausel der **Auftraggeber (Isar Housing Corp)** (`documents[Content]`, `P-200_contract`).\n\n---\n\n**5. Status „erforderlich“ vs. „erteilt“:**\n\n- **Für Prognose A:** Keine Zustimmung erforderlich.\n- **Für Prognose B:** Zustimmung **erforderlich** (aber keine Information über bereits erfolgte Zustimmung im Datenstand).\n- **Erteilte Zustimmung:** _Keine Information über erteilte Zustimmung im vorliegenden Stand._ (Keine Emails oder Vertragszusätze dazu in den Daten.)\n\n---\n\n**Beleg:**  \n„Ein Überziehen um mehr als 10 % erfordert eine schriftliche Zustimmung des Auftraggebers.“  \n→ Quelle: P-200 Vertrag, `documents[DocId]=P-200_contract`, Feld `documents[OverrunApprovalThresholdPercent]`.\n\n---\n\n**Zusammenfassung:**\n\n- **Prognose A:** 5.500.000 EUR, +500.000 EUR, +10 %, **keine Zustimmungspflicht**\n- **Prognose B:** 5.550.000 EUR, +550.000 EUR, +11 %, **Zustimmung durch Auftraggeber erforderlich** (noch nicht erteilt)\n\n**Beleg:** P-200 Vertrag, „Überziehen um mehr als 10 %...“ (`P-200_contract`, `documents[OverrunApprovalThresholdPercent]`)"
+    },
+    {
+      "id": "B-003-IQ",
+      "case_id": "B-003",
+      "source": {
+        "agent": "project-planning-agent",
+        "version": 8,
+        "run": "evalrun_02c607f278c54938804de61caeb4faa0"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": false,
+      "rationale": "Alle Zahlen, strikte Grenze, Auftraggeber, keine erteilte Zustimmung behauptet.",
+      "response": "Für P-200 gilt folgendes Vertragsbudget: EUR 5.000.000.\n\nKlauselbeleg:\n> “An overrun of more than 10 % requires written approval by the client.”\n\nBerechnung der Budgetabweichung:\n\n| Prognose | Kosten         | Abweichung in EUR | Abweichung in % | Zustimmung nach Klausel                   |\n|----------|----------------|-------------------|-----------------|-------------------------------------------|\n| A        | EUR 5.500.000  | EUR 500.000       | 10,0 %          | Nein – die Klausel greift erst bei mehr als 10 % |\n| B        | EUR 5.550.000  | EUR 550.000       | 11,0 %          | Ja – schriftliche Zustimmung ist erforderlich |\n\nWer muss zustimmen?\n- Für Prognose B ist die schriftliche Zustimmung des Kunden erforderlich.\n- Kunde laut Vertrag: Isar Housing Corp.\n\nErforderliche vs. bereits erteilte Zustimmung:\n- Erforderlich: Für B eine schriftliche Zustimmung des Kunden.\n- Bereits erteilt: Im Datenbestand liegt die Vertragsunterzeichnung vor, aber keine gesonderte schriftliche Zustimmung zu einer Überschreitung von mehr als 10 %. Die Vertragsunterschrift bezieht sich nur auf die Annahme, nicht auf die Überschreitung.\n\nFazit:\n- Prognose A löst die Klausel nicht aus.\n- Prognose B löst die Klausel aus und braucht schriftliche Zustimmung von Isar Housing Corp.\n\nBeleg: fabric-iq-ontology, Vertragsklausel “An overrun of more than 10 % requires written approval by the client.” ."
+    },
+    {
+      "id": "B-004-BASIC",
+      "case_id": "B-004",
+      "source": {
+        "agent": "project-planning-baseline",
+        "version": 6,
+        "run": "evalrun_792d4e28e8b24e8cb5524a9acd265f44"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": true,
+      "rationale": "Sachlich korrekt; der Begriff 'Change Request' faellt nicht woertlich, gleichwertige Einordnung als Zusatzleistung.",
+      "response": "**Einordnung der Forderung nach den Unterlagen:**\n\n1. **Spezifikation und Festpreis:**\n   - Die Spezifikation für P-100 (DocId: P-100_specification) enthält keinen Hinweis auf besondere Zusatzleistungen wie eine grüne Dachfläche mit Photovoltaik.\n   - Im Angebot (DocId: P-100_offer) ist ein Festpreis von EUR 2.400.000 netto für klar definierte Leistungen genannt. Darüber hinausgehende Änderungen „außerhalb der Spezifikation“ werden mit EUR 85 pro Stunde abgerechnet: „Changes outside the specification are charged by effort at EUR 85 per hour.“\n\n2. **Kundenforderung:**\n   - Die Anfrage des Kunden bezieht sich auf eine zusätzliche Leistung („Bitte fügen Sie ein Gründach mit Photovoltaik hinzu. Das sollte durch den Festpreis abgedeckt sein.“ – E-Mail E-3).\n   - Nach den Verträgen und Angeboten ist aber jede Zusatzleistung, die nicht in der ursprünglichen Spezifikation festgelegt ist, nicht vom Festpreis abgedeckt.\n\n**Beleg für die Einordnung:**\n- DocId: P-100_offer, Abschnitt zu Änderungen außerhalb der Spezifikation.\n- Die E-Mail des Kunden (E-3) ist eine Zusatzanfrage und keine Leistungsbeschreibung der Ursprungsspezifikation.\n\n---\n\n**Schätzung (Kalkulation nach Aufwand, da Zusatzleistung):**\n\n80 Stunden × EUR 85/Stunde = **EUR 6.800** netto\n\n---\n\n**Beauftragung:**\n- Zusatzleistungen außerhalb der vertraglichen Spezifikation sind explizit zu beauftragen.\n- Sie gelten erst nach schriftlicher oder dokumentierter Beauftragung des Kunden als bestellt und werden nach Aufwand zum genannten Stundensatz abgerechnet (DocId: P-100_offer).\n\n---\n\n**Endgültiger Preis:**\n- Der endgültige Preis hängt von der tatsächlichen Bestätigung und dem dokumentierten Beauftragungsumfang ab. Bei bestätigten 80 Stunden bliebe es bei **EUR 6.800** netto.\n\n---\n\n**Zusammenfassung:**\n\n- **Schätzung:** 80 Stunden × EUR 85 = **6.800 € netto**\n- **Beauftragung:** Muss gesondert durch den Kunden erfolgen, da Zusatzleistung klar nicht im Festpreis enthalten.\n- **Endgültiger Preis:** Entspricht der tatsächlich geleisteten und beauftragten Stundenzahl (bei 80 Stunden: 6.800 € netto).\n\n**Beleg:** DocId: P-100_offer („Changes outside the specification are charged by effort at EUR 85 per hour.“). E-3 zeigt die abweichende Kundenwahrnehmung, steht aber im Widerspruch zum Vertragswortlaut."
+    },
+    {
+      "id": "B-004-IQ",
+      "case_id": "B-004",
+      "source": {
+        "agent": "project-planning-agent",
+        "version": 8,
+        "run": "evalrun_02c607f278c54938804de61caeb4faa0"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": false,
+      "rationale": "Change Request, 85 EUR/h, 6.800 EUR als Schaetzung, Beauftragung nicht belegt.",
+      "response": "Die Forderung ist nach deinen Unterlagen und internen Regeln als Nachtrag (Change Request) einzuordnen und nicht durch den Festpreis abgedeckt:\n\n**Begründung und Belege:**\n- Leistungen, die nachweislich außerhalb der vereinbarten Spezifikation liegen, gelten gemäß den internen Regeln als Change Request und sind separat zu vergüten. Sie dürfen nicht im Festpreis enthalten sein.\n- Für das Projekt P-100 ist laut Angebotsunterlagen ein Stundensatz für Zusatzleistungen (ChangeRateEurPerHour) von 85 EUR/h und ein Festpreis (FixedPriceEur) von 2.400.000 EUR dokumentiert.\n- Die reine Anfrage oder eine Kostenschätzung begründet noch keine Beauftragung oder Abrechnung.\n\n**Schrittweise Einordnung:**\n\n1. **Schätzung**\n   - Aufwand: 80 Stunden × 85 EUR/h = 6.800 EUR (Kostenschätzung für die Zusatzleistung).\n\n2. **Beauftragung**\n   - Mit der Anfrage ist keine Beauftragung oder Freigabe nachgewiesen; es handelt sich lediglich um eine Schätzung.\n\n3. **Endgültiger Preis**\n   - Der Endpreis steht erst nach ausdrücklicher Beauftragung und ggf. Leistungsnachweis fest. Die 6.800 EUR sind der rechnerische Wert gemäß Stundensatz und Aufwand, aber noch kein rechtsverbindlicher Endpreis.\n\n**Kurzfazit**\n- Die Zusatzleistung ist als Change Request/Nachtrag zu behandeln, gesondert abzurechnen und nicht durch den Festpreis gedeckt.\n- Schätzung: 6.800 EUR\n- Beauftragung: Nicht belegt\n- Endpreis: Ohne Freigabe nicht endgültig festgelegt\n\n**Belegstellen:**\n- „Arbeit außerhalb der Spezifikation ist ein Change Request [...]; sie ist separat zu vergüten und darf nicht in den Festpreis einfließen.“\n- Daten zu Festpreis und Stundensatz aus den Unterlagen zu P-100\n\nQuelle: fabric-iq-ontology【message_idx:0†fabric-iq-ontology】"
+    },
+    {
+      "id": "B-005-BASIC",
+      "case_id": "B-005",
+      "source": {
+        "agent": "project-planning-baseline",
+        "version": 6,
+        "run": "evalrun_792d4e28e8b24e8cb5524a9acd265f44"
+      },
+      "expected_pass": false,
+      "expected_failed": [
+        "dl200_no_guarantee",
+        "false_guarantee",
+        "clarify_supplier_confirmation",
+        "clarify_replacement_date",
+        "clarify_dependencies",
+        "clarify_buffers",
+        "alt_not_self",
+        "alt_quantity_needed",
+        "alt_quantity_value"
+      ],
+      "borderline": false,
+      "rationale": "DL-200 wird abgeschwaecht als lieferbar zugesichert; S-100 steht unter 'Andere lieferfaehige Lieferanten'; keine Lieferantenbestaetigung, kein Ersatztermin, keine Abhaengigkeiten/Puffer; benoetigte Menge und 1200 m2 fehlen.",
+      "response": "Hier die Analyse des Testszenarios auf Basis Ihrer Referenzdaten und der fiktiven Nachricht:\n\n### 1. Bewertung der geplanten Materiallieferungen\n\n#### Fiktive Nachricht (15.07.2027) – Lieferstopp:  \n**Material:** Mineralwoll-Dämmplatte MW-035  \n**Lieferant:** BauDaemm GmbH (S-100)  \n**Kein Versand möglich:** 01.08.2027 bis inkl. 30.09.2027  \n**Lieferungen ab:** 01.10.2027 wieder geplant  \n**Andere Produkte:** Nicht betroffen\n\n#### a) Geplante Lieferungen mit Bezug\nEs gibt zwei geplante Lieferungen dieses Materials durch BauDaemm GmbH (S-100):\n\n| Lieferungs-ID | Material | Lieferant   | Liefertermin     | Zu Projekt           | Bauabschnitt-ID | Abschnittsname       | Abschnittstermine                | Projektleiter (E-Mail)         |\n|---------------|----------|-------------|------------------|----------------------|-----------------|----------------------|----------------------------------|-------------------------------|\n| DL-100        | MW-035<br>(MAT-035) | BauDaemm GmbH<br>(S-100) | 02.08.2027           | P-100<br>Office Building Hamburg | T-104            | Facade and roof         | 01.08.2027 bis 30.09.2027       | Anna Becker<br>(anna.becker@example.com) |\n| DL-200        | MW-035<br>(MAT-035) | BauDaemm GmbH<br>(S-100) | 03.01.2028           | P-200<br>Residential Complex Munich | T-205            | Facade and roof         | 01.01.2028 bis 31.03.2028        | Ben Fischer<br>(ben.fischer@example.com) |\n\n#### b) Prüfung auf Konflikt:\n\n**Konflikt mit dem gemeldeten Lieferstopp:**  \n- **DL-100 (P-100, Facade and roof):**\n  - **Liefertermin:** 02.08.2027  \n  - **Stopp:** 01.08.2027 bis 30.09.2027  \n  - **Konflikt:** Ja. Dieser Termin fällt innerhalb des gemeldeten Lieferstopps; Lieferung kann nicht wie geplant erfolgen.\n\n**Lieferung außerhalb des Zeitraums:**  \n- **DL-200 (P-200, Facade and roof):**\n  - **Liefertermin:** 03.01.2028  \n  - **Stopp:** 01.08.2027 bis 30.09.2027  \n  - **Konflikt:** Nein. Termin liegt nach Ende des Lieferstopps und ist laut aktueller Meldung nicht betroffen.\n\n**Begründung:**  \n- DL-100 fällt **vollständig** in den gemeldeten Zeitraum (ab 01.08.2027, Liefertermin 02.08.2027), Lieferung laut BauDaemm GmbH **nicht möglich**.\n- DL-200 ist **klar außerhalb** des Stopps (03.01.2028) und kann nach derzeitigem Kenntnisstand geliefert werden.\n\n---\n\n### 2. Weitere Verknüpfungen und Verantwortlichkeiten\n\n| Lieferungs-ID | Abschnitt-ID | Abschnittsname       | Start      | Ende        | Projekt-ID | Projektname                 | Projektleiter (E-Mail)         |\n|---------------|-------------|----------------------|------------|-------------|------------|-----------------------------|-------------------------------|\n| DL-100        | T-104       | Facade and roof      | 01.08.2027 | 30.09.2027  | P-100      | Office Building Hamburg     | Anna Becker<br>(anna.becker@example.com) |\n| DL-200        | T-205       | Facade and roof      | 01.01.2028 | 31.03.2028  | P-200      | Residential Complex Munich  | Ben Fischer<br>(ben.fischer@example.com) |\n\n---\n\n### 3. Trennung von Lieferkonflikt und Projektfolgen / weiterer Klärungsbedarf\n\n**Lieferkonflikt:**  \n- Betrifft ausschließlich die Lieferung **DL-100** (02.08.2027, BauDaemm GmbH).  \n- Es handelt sich rein um einen Materiallieferstopp des genannten Lieferanten für das spezifische Produkt und den betroffenen Zeitraum.\n\n**Noch ungeklarte Bau- oder Fertigstellungsverzögerungen:**  \n- Nicht automatisch feststellbar. Es liegen keine Berichte über Verzögerungen im Bauabschnitt selbst oder eine aktualisierte Bauzeitplanung als Folge des Lieferstopps vor.\n- Der tatsächliche Einfluss (z.B. Terminverschiebung, Baufortschritt, Vertragsfolgen) muss geprüft und mit der Projektleitung geklärt werden.\n- Eventuelle Alternativbeschaffung, Anpassung der Ablaufplanung oder Mitteilung an den Auftraggeber wären zu veranlassen, sobald Auswirkungen festgestellt werden.\n\n---\n\n### 4. Alternative Bezugsquellen für das Material\n\n**Andere lieferfähige Lieferanten laut Sortiment:**  \n- Für Mineralwoll-Dämmplatte MW-035 (MAT-035) sind folgende Lieferanten in den Daten gelistet:  \n  - **BauDaemm GmbH (S-100)**  \n  - **IsolierPartner GmbH (S-200)**\n\n- **IsolierPartner GmbH (S-200)** ist als alternative Bezugsquelle potentiell verfügbar (siehe `supplier_materials`).\n\n**Voraussetzungen für einen Wechsel:**  \n- **Klärungsbedarf vor Wechsel:**  \n  - Die alternative Lieferfähigkeit und Konditionen (Preis, Qualität, Lieferzeitpunkt) müssen **zunächst mit IsolierPartner GmbH (S-200) abgestimmt und bestätigt** werden.\n  - Eine tatsächliche Umbeauftragung oder Bestellung ist **nicht dokumentiert** und muss ggf. vertraglich/regulatorisch geprüft und von Projektleitung bzw. Einkauf freigegeben werden.\n  - Es bestehen **keine festgelegten Fristen oder automatisch ausgelösten Bestellungen** in den vorliegenden Daten.\n\n---\n\n### Zusammenfassung (Stichpunkte)\n\n- **Lieferkonflikt:**  \n  - DL-100 (BauDaemm GmbH, Mineralwoll-Dämmplatte MW-035, Lieferung 02.08.2027, Projekt: P-100 Facade and roof, Anna Becker): **Im Konflikt** mit Lieferstopp vom 01.08.2027 bis 30.09.2027.\n- **Keine Auswirkung:**  \n  - DL-200 (gepl. Lieferung 03.01.2028, Projekt: P-200, Isar Housing, Ben Fischer): **Nicht betroffen**.\n- **Weiterer Klärungsbedarf:**  \n  - Bau- und Fertigstellungsverzögerungen sind noch nicht ableitbar. Abstimmung mit Projektleitung und ggf. Kunden nötig.\n  - IsolierPartner GmbH (S-200) ist als alternativer Lieferant gelistet. Verfügbarkeit, Konditionen und Umbeauftragung müssen vorab bestätigt werden.\n\n#### Keine der Schlussfolgerungen begründet zwangsläufig eine Projektverzögerung oder Vertragsfolge ohne weitere Klärung mit der Projektleitung.\n\n**Quellen:**  \n- Lieferdaten: `material_deliveries`, `materials`, `suppliers`, `tasks`  \n- Bauabschnittstermine/-leitung: `tasks`, `project_managers`, `projects`  \n- Lieferanten-Sortiment: `supplier_materials`"
+    },
+    {
+      "id": "B-005-IQ",
+      "case_id": "B-005",
+      "source": {
+        "agent": "project-planning-agent",
+        "version": 8,
+        "run": "evalrun_02c607f278c54938804de61caeb4faa0"
+      },
+      "expected_pass": false,
+      "expected_failed": [
+        "clarify_supplier_confirmation",
+        "clarify_replacement_date",
+        "alt_quantity_value"
+      ],
+      "borderline": false,
+      "rationale": "Lieferantenbestaetigung, Ersatzliefertermin und die Menge 1200 m2 werden nicht genannt.",
+      "response": "Hier das Analyseergebnis des fiktiven Testszenarios auf Basis der vorhandenen Datenlage:\n\n---\n\n## 1. Geplante Lieferung im Konflikt mit dem Lieferstopp\n\n**Lieferkonflikt**\n- Lieferant: BauDaemm GmbH (ID: S-100)\n- Material: Mineralwoll-Dämmplatte MW-035 (ID: MAT-035)\n- Lieferungs-ID: DL-100\n- Geplanter Liefertermin: 02.08.2027\n- Zugehöriges Projekt: P-100 – Office Building Hamburg\n- Bauabschnitt mit ID und Name: T-104 – Facade and roof\n- Bauabschnittstermine: 01.08.2027 bis 30.09.2027\n- Verantwortliche Projektleitung: Anna Becker (M-1), anna.becker@example.com\n\n**Begründung:** Der gemeldete Stopp umfasst den Zeitraum vom 01.08.2027 bis einschließlich 30.09.2027. Die Lieferung DL-100 fällt mit Termin 02.08.2027 genau in diesen Bereich und ist dadurch direkt betroffen.\n\n---\n\n## 2. Geplante Lieferung außerhalb des Stoppzeitraums\n\n**Keine Konfliktlage**\n- Lieferant: BauDaemm GmbH (ID: S-100)\n- Material: Mineralwoll-Dämmplatte MW-035 (ID: MAT-035)\n- Lieferungs-ID: DL-200\n- Geplanter Liefertermin: 03.01.2028\n- Zugehöriges Projekt: P-200 – Residential Complex Munich\n- Bauabschnitt mit ID und Name: T-205 – Facade and roof\n- Bauabschnittstermine: 01.01.2028 bis 31.03.2028\n- Verantwortliche Projektleitung: Ben Fischer (M-2), ben.fischer@example.com\n\n**Begründung:** Die Lieferung DL-200 ist erst für den 03.01.2028 geplant und damit klar außerhalb des angegebenen Stoppzeitraums.\n\n---\n\n## 3. Klärungsbedarf zu Bau- oder Fertigstellungsverzögerungen\n\n- Der hier identifizierte Lieferkonflikt ist zunächst ein Versorgungsrisiko. Er beweist noch keinen Bauverzug, keinen Fertigstellungsverzug und keine Vertragsfolge.\n- Für die Bewertung, ob daraus ein Projektrückschritt droht, müssen noch folgende Punkte geprüft werden:\n    - Abhängigkeiten des betroffenen Bauabschnitts (kritischer Pfad, Verzögerung weiterer Gewerke).\n    - Vorhandene Zeitpuffer des Bauabschnitts und Projektes.\n    - Auswirkungen auf Folgegewerke oder Gesamtfertigstellung.\n    - Ggf. weitere Plananpassungen oder Nachverhandlungen erforderlich.\n\n---\n\n## 4. Weitere mögliche Lieferanten für das Material (laut Sortiment)\n\n- Für die Mineralwoll-Dämmplatte MW-035 (MAT-035) ist ebenfalls gelistet:\n    - IsolierPartner GmbH (ID: S-200) – potenzielle Bezugsquelle\n\n**Vor einem Wechsel zu prüfen und zu bestätigen:**\n- Verfügbarkeit beim alternativen Lieferanten\n- Gedeckte benötigte Menge\n- Lieferfähigkeit bis zum benötigten Termin\n- Preisgestaltung/Angebot\n- Beschaffungsfreigabe nach Projektvorgaben\n\nBeachte: Die Katalogzuordnung belegt nur die mögliche Bezugsquelle – sie ist kein Nachweis für tatsächliche Lagerverfügbarkeit, Lieferkapazität oder Konditionen.\n\n---\n\n**Fazit:**  \nNur die Lieferung DL-100 kollidiert sicher mit dem Produktions-Stopp; weitere Bau- oder Fertigstellungsverzögerungen müssen explizit anhand der genannten Schritte geprüft werden. Für das betroffene Material besteht mindestens eine alternative Bezugsquelle, deren Verfügbarkeit und Lieferfähigkeit erst nach Bestätigung als gesichert gilt.\n\nQuellenbeleg: Alle Daten und Ableitungen stammen direkt aus dem geprüften Ontologiesystem; vollständige tabellarische Darstellung siehe Dokumentation ."
+    },
+    {
+      "id": "B-006-BASIC",
+      "case_id": "B-006",
+      "source": {
+        "agent": "project-planning-baseline",
+        "version": 6,
+        "run": "evalrun_792d4e28e8b24e8cb5524a9acd265f44"
+      },
+      "expected_pass": false,
+      "expected_failed": [
+        "synonym",
+        "project_hamburg",
+        "project_munich",
+        "complete_list"
+      ],
+      "borderline": false,
+      "rationale": "qwert wird nicht als Project aufgeloest; keine Projektliste.",
+      "response": "Im bereitgestellten Snapshot gibt es keinen Datentyp „qwert“ und keine Einträge unter diesem Namen.  \nEs liegen keine Informationen zu Objekten, IDs oder Namen mit der Bezeichnung „qwert“ vor."
+    },
+    {
+      "id": "B-006-IQ",
+      "case_id": "B-006",
+      "source": {
+        "agent": "project-planning-agent",
+        "version": 8,
+        "run": "evalrun_02c607f278c54938804de61caeb4faa0"
+      },
+      "expected_pass": true,
+      "expected_failed": [],
+      "borderline": false,
+      "rationale": "Beide Projekte mit ID und Namen, nichts hinzugefuegt.",
+      "response": "Hier sind alle qwert mit ihrer ID und ihrem Namen:\n\n| ID    | Name                      |\n|-------|---------------------------|\n| P-100 | Office Building Hamburg   |\n| P-200 | Residential Complex Munich|\n\nQuelle: fabric-iq-ontology ."
+    }
+  ],
+  "variants": [
+    {
+      "id": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "base": "B-005-IQ",
+      "expected_pass": true,
+      "expected_failed": [],
+      "rationale": "Echte IQ-Antwort plus die drei fehlenden Punkte, frei formuliert: muss bestehen.",
+      "replace": [
+        [
+          "    - Auswirkungen auf Folgegewerke oder Gesamtfertigstellung.\n",
+          "    - Auswirkungen auf Folgegewerke oder Gesamtfertigstellung.\n    - Ob die BauDaemm GmbH ihre Produktionsstörung formell bestätigt.\n    - Zu welchem Datum tatsächlich wieder geliefert werden kann.\n"
+        ],
+        [
+          "- Gedeckte benötigte Menge\n",
+          "- Gedeckte benötigte Menge (1200 m² für DL-100)\n"
+        ]
+      ]
+    },
+    {
+      "id": "B-005-IQ-DL200-CONFLICT",
+      "base": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "expected_pass": false,
+      "expected_failed": [
+        "dl200_no_conflict",
+        "wrong_delivery_window"
+      ],
+      "rationale": "DL-200 wird faelschlich als vom Lieferstopp betroffen dargestellt.",
+      "replace": [
+        [
+          "**Keine Konfliktlage**",
+          "**Konfliktlage**"
+        ],
+        [
+          "Die Lieferung DL-200 ist erst für den 03.01.2028 geplant und damit klar außerhalb des angegebenen Stoppzeitraums.",
+          "Die Lieferung DL-200 liegt im Projektzeitraum und ist ebenfalls vom Lieferstopp betroffen."
+        ]
+      ]
+    },
+    {
+      "id": "B-005-IQ-NOT-AFFECTED-WORDING",
+      "base": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "expected_pass": true,
+      "expected_failed": [],
+      "rationale": "Einzige Aenderung: DL-200 wird zusaetzlich als vom Stopp nicht betroffen beschrieben. Das ist erwartet und keine Lieferzusage.",
+      "replace": [
+        [
+          "**Begründung:** Die Lieferung DL-200 ist erst für den 03.01.2028 geplant und damit klar außerhalb des angegebenen Stoppzeitraums.",
+          "**Begründung:** Die Lieferung DL-200 ist erst für den 03.01.2028 geplant und damit klar außerhalb des angegebenen Stoppzeitraums. Sie ist von diesem Engpass laut aktueller Lage nicht betroffen."
+        ]
+      ]
+    },
+    {
+      "id": "B-005-IQ-FALSE-GUARANTEE",
+      "base": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "expected_pass": false,
+      "expected_failed": [
+        "dl200_no_guarantee",
+        "false_guarantee"
+      ],
+      "rationale": "Einzige Aenderung: DL-200 wird abgeschwaecht als lieferbar zugesichert.",
+      "replace": [
+        [
+          "**Begründung:** Die Lieferung DL-200 ist erst für den 03.01.2028 geplant und damit klar außerhalb des angegebenen Stoppzeitraums.",
+          "**Begründung:** Die Lieferung DL-200 ist erst für den 03.01.2028 geplant und damit klar außerhalb des angegebenen Stoppzeitraums. Sie kann nach derzeitigem Kenntnisstand geliefert werden."
+        ]
+      ]
+    },
+    {
+      "id": "B-005-IQ-S100-AS-ALTERNATIVE",
+      "base": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "expected_pass": false,
+      "expected_failed": [
+        "alt_not_self"
+      ],
+      "rationale": "Einzige Aenderung: S-100 wird als alternative Bezugsquelle mit aufgefuehrt.",
+      "replace": [
+        [
+          "    - IsolierPartner GmbH (ID: S-200) – potenzielle Bezugsquelle",
+          "    - BauDaemm GmbH (ID: S-100) – alternative Bezugsquelle\n    - IsolierPartner GmbH (ID: S-200) – potenzielle Bezugsquelle"
+        ]
+      ]
+    },
+    {
+      "id": "B-005-IQ-NO-DEPENDENCIES",
+      "base": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "expected_pass": false,
+      "expected_failed": [
+        "clarify_dependencies"
+      ],
+      "rationale": "Einzige Aenderung: beide Punkte zu Abhaengigkeiten und Folgewirkungen auf andere Gewerke wurden entfernt.",
+      "replace": [
+        [
+          "    - Abhängigkeiten des betroffenen Bauabschnitts (kritischer Pfad, Verzögerung weiterer Gewerke).\n",
+          ""
+        ],
+        [
+          "    - Auswirkungen auf Folgegewerke oder Gesamtfertigstellung.\n",
+          ""
+        ]
+      ]
+    },
+    {
+      "id": "B-005-IQ-INVENTED-NEWS-DEADLINE",
+      "base": "B-005-IQ-WITH-SUPPLIER-CLARIFICATION",
+      "expected_pass": false,
+      "expected_failed": [
+        "policy_scope",
+        "policy_overreach"
+      ],
+      "rationale": "Einzige Aenderung: eine verbindliche Ein-Arbeitstag-Frist fuer Nachrichtenartikel wird behauptet.",
+      "replace": [
+        [
+          "**Fazit:**",
+          "**Fazit:** Nach unserer internen Regel gilt für Nachrichtenartikel verbindlich eine Eskalationsfrist von einem Arbeitstag."
+        ]
+      ]
+    },
+    {
+      "id": "B-002-IQ-NO-START-COMPARISON",
+      "base": "B-002-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "comparison"
+      ],
+      "rationale": "Vergleich mit dem Projektstart wurde entfernt.",
+      "replace": [
+        [
+          "Der gemeldete Schließungszeitraum liegt vollständig vor dem offiziellen Projektzeitraum (01.03.2027 bis 30.06.2028) laut Projektunterlagen. Es besteht keine Überschneidung mit Projektbeginn oder Vertragslaufzeit. Zudem ist die Information",
+          "Die Information ist"
+        ]
+      ]
+    },
+    {
+      "id": "B-002-IQ-DATE-PARAPHRASE",
+      "base": "B-002-IQ",
+      "expected_pass": true,
+      "expected_failed": [],
+      "rationale": "Nur andere Datumsschreibweise: gleiche Bedeutung, muss bestehen.",
+      "replace": [
+        [
+          "20.12.2026 bis einschließlich 03.01.2027",
+          "20. Dezember 2026 bis einschließlich 3. Januar 2027"
+        ]
+      ]
+    },
+    {
+      "id": "B-001-IQ-DEADLINE-PARAPHRASE",
+      "base": "B-001-IQ",
+      "expected_pass": true,
+      "expected_failed": [],
+      "rationale": "Eskalationsfrist anders formuliert, gleiche Bedeutung: muss bestehen.",
+      "replace": [
+        [
+          "- Innerhalb von 1 Werktag, d.h. bei Eingang am 2026-11-16 spätestens bis 2026-11-17.",
+          "- Spätestens am nächsten Arbeitstag, dem 17.11.2026."
+        ]
+      ]
+    },
+    {
+      "id": "B-001-IQ-WRONG-DEADLINE",
+      "base": "B-001-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "escalation",
+        "wrong_deadline"
+      ],
+      "rationale": "Falsche verbindliche Eskalationsfrist.",
+      "replace": [
+        [
+          "- Innerhalb von 1 Werktag, d.h. bei Eingang am 2026-11-16 spätestens bis 2026-11-17.",
+          "- Bis spätestens 2027-01-31, dem Ende der angenommenen Genehmigungsfrist."
+        ]
+      ]
+    },
+    {
+      "id": "B-001-IQ-INVENTED-NOTIFICATION",
+      "base": "B-001-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "invented_notification"
+      ],
+      "rationale": "Behauptet eine bereits versandte Eskalation ohne bestaetigten Tool-Erfolg.",
+      "replace": [
+        [
+          "Quelle: Bewertung nach Projektunterlagen",
+          "Die Eskalation an Anna Becker wurde bereits versandt.\n\nQuelle: Bewertung nach Projektunterlagen"
+        ]
+      ]
+    },
+    {
+      "id": "B-003-IQ-WRONG-BOUNDARY",
+      "base": "B-003-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "boundary",
+        "wrong_boundary"
+      ],
+      "rationale": "Genau 10 Prozent werden faelschlich als zustimmungspflichtig bewertet.",
+      "replace": [
+        [
+          "| Nein – die Klausel greift erst bei mehr als 10 % |",
+          "| Ja – schriftliche Zustimmung ist erforderlich |"
+        ],
+        [
+          "- Prognose A löst die Klausel nicht aus.",
+          "- Prognose A löst die Klausel aus."
+        ]
+      ]
+    },
+    {
+      "id": "B-003-IQ-GRANTED-APPROVAL",
+      "base": "B-003-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "uncertainty",
+        "granted_approval"
+      ],
+      "rationale": "Behauptet eine bereits erteilte Zustimmung.",
+      "replace": [
+        [
+          "- Bereits erteilt: Im Datenbestand liegt die Vertragsunterzeichnung vor, aber keine gesonderte schriftliche Zustimmung zu einer Überschreitung von mehr als 10 %. Die Vertragsunterschrift bezieht sich nur auf die Annahme, nicht auf die Überschreitung.",
+          "- Bereits erteilt: Die schriftliche Zustimmung von Isar Housing Corp liegt bereits vor."
+        ]
+      ]
+    },
+    {
+      "id": "B-004-IQ-INVENTED-ORDER",
+      "base": "B-004-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "uncertainty",
+        "invented_order"
+      ],
+      "rationale": "Behauptet erteilte Beauftragung und verbindlichen Endpreis.",
+      "replace": [
+        [
+          "- Beauftragung: Nicht belegt",
+          "- Beauftragung: Vom Kunden bereits erteilt"
+        ],
+        [
+          "- Endpreis: Ohne Freigabe nicht endgültig festgelegt",
+          "- Endpreis: Verbindlich 6.800 EUR"
+        ]
+      ]
+    },
+    {
+      "id": "B-006-IQ-FABRICATED-PROJECT",
+      "base": "B-006-IQ",
+      "expected_pass": false,
+      "expected_failed": [
+        "complete_list",
+        "fabricated_projects"
+      ],
+      "rationale": "Erfindet ein drittes Projekt.",
+      "replace": [
+        [
+          "| P-200 | Residential Complex Munich|",
+          "| P-200 | Residential Complex Munich|\n| P-300 | Industrial Hall Berlin    |"
+        ]
+      ]
+    },
+    {
+      "id": "B-006-IQ-BULLET-LIST",
+      "base": "B-006-IQ",
+      "expected_pass": true,
+      "expected_failed": [],
+      "rationale": "Nur andere Darstellung (Liste statt Tabelle): muss bestehen.",
+      "replace": [
+        [
+          "| ID    | Name                      |\n|-------|---------------------------|\n| P-100 | Office Building Hamburg   |\n| P-200 | Residential Complex Munich|",
+          "- P-100: Office Building Hamburg\n- P-200: Residential Complex Munich"
+        ]
+      ]
+    }
+  ]
+}

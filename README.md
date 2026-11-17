@@ -66,7 +66,7 @@ Agent-owned sources are grouped in [agents/fabric-iq/](agents/fabric-iq/) and
 | `notebooks/business_b001.ipynb` | Detailed B-001 walkthrough with individual requests, instructions and Foundry judgments |
 | `notebooks/business_b002.ipynb` | Detailed B-002 office-closure walkthrough with the same separate agent requests and Foundry judgments |
 | `notebooks/business_b005.ipynb` | Detailed B-005 supplier-news walkthrough, including the direct ontology tool answer and separate Foundry judgments |
-| `notebooks/business_all_tests.ipynb` | Compact six-case comparison with separate fixed-file capture and Foundry judging |
+| `notebooks/business_all_tests.ipynb` | Direct six-case Foundry evaluations using the existing reference dataset |
 | `notebooks/import_updates.ipynb` | Bash notebook for editing and updating one demo PDF, with optional independent metadata and CSV imports |
 | `docs/how-it-works.md` | Explanation of the solution for readers who know Foundry but not Fabric or ontologies |
 | `docs/configuration-reference.md` | Every setting of the current setup, file by file, with Microsoft references, portal deep links, strengths and weaknesses |
@@ -412,7 +412,7 @@ These results check the recorded examples, not universal judge reliability.
 
 The six-case [business_tests.json](evaluations/business_tests.json) is the single
 maintained business-test source. The [dataset catalog](evaluations/datasets.json)
-generates one canonical reference JSONL plus separate judge calibration inputs.
+generates one canonical reference JSONL plus local-only judge calibration inputs.
 Generate and commit the JSONL alongside its source;
 the [Foundry datasets workflow](.github/workflows/foundry-datasets.yml) rejects
 stale exports and supports manual OIDC publication. The same command is available
@@ -446,8 +446,7 @@ Fabric capacity are required for live comparison. The notebook never resumes or
 pauses capacity, provisions resources or changes agents.
 
 For B-002, use [business_b002.ipynb](notebooks/business_b002.ipynb). It follows
-the same steps for P-200's office-closure email, including both evaluator
-registrations and the separate Fabric IQ and Basic evaluations. Its fixed output
+the same diagnosis steps for P-200's office-closure email. Its fixed output
 directory is `evaluations/notebook_runs/p200-office-closure/`, so it does not
 overwrite B-001 captures or results.
 
@@ -455,116 +454,65 @@ For the supplier-news case, [business_b005.ipynb](notebooks/business_b005.ipynb)
 tests B-005 using the current reference and live ontology, not a reconstruction
 of an earlier failure. It also displays the captured `ask_ontology` answer
 without another inference call. Outputs go to
-`evaluations/notebook_runs/supplier-news/`; evaluator registration and judging
-follow the same steps as B-001 and B-002.
+`evaluations/notebook_runs/supplier-news/`.
 
-Registration, agent inference and judging are separate cells:
+These three notebooks are now response and trace diagnostics only. Each calls
+Fabric IQ and Basic once, saves the complete Responses API JSON and displays
+the answer and instructions. They do not register evaluators or submit saved
+answers for cloud judging. Those judge and comparison cells have been removed.
+Only the selected case's `query` reaches each agent. Fixed response files are
+overwritten; there are no automatic agent-request retries.
 
-The first code cell defines all endpoint URLs and fixed file paths. No Bash
-functions hide requests: each agent cell contains its `az rest` call directly
-and prints the full URL. Evaluation cells use `--show-endpoints` to print the
-actual SDK request methods and URLs, including polling, without headers or tokens.
-Every `az rest` response is captured with `--output json` in a Bash variable:
-`EVALUATOR_RESPONSE`, `EVALUATOR_UPDATE_RESPONSE`, `IQ_RESPONSE` or
-`BASIC_RESPONSE`. The same JSON is also saved to its fixed file. Inspect a
-response directly with, for example, `jq '.id, .status' <<< "$IQ_RESPONSE"`.
+The first code cell contains all endpoints and paths. Each `az rest` call prints
+its URL and retains the response in `IQ_RESPONSE` or `BASIC_RESPONSE`, as well as
+on disk. For example, inspect `jq '.id, .status' <<< "$IQ_RESPONSE"`.
+Raw captures remain useful for checking the complete `ask_ontology` handoff.
+Captures validate the full original user message, allowing whitespace differences
+only; invalid handoffs stop the diagnostic. This is transport validation, not
+local business grading.
 
-Run all cells from top to bottom. There are no conditional branches, caching
-checks or update switches.
-
-1. Both registration cells upload the local JSON definition with a direct `POST`.
-   Each publishes a new version of the same evaluator and overwrites the fixed
-   `EVALUATOR_FILE`; historical versions are not modified. A complete notebook
-   run therefore creates two versions. Both evaluations use the second version.
-   The registration body includes `display_name` and `description`, which populate
-   the Foundry catalog columns; the technical resource `name` alone does not.
-2. One `az rest` cell sends B-001 only to Fabric IQ; a separate cell sends it only
-   to Basic. Each saves the full Responses API JSON and its capture provenance.
-   Each execution makes one new agent request and overwrites that agent's fixed
-   files. There is no automatic retry.
-3. `evaluate_business.py --captured-responses ... --case-id B-001
-   --evaluator-version ...` submits exactly one saved answer per cell to its own
-   live Foundry evaluation with the pinned custom evaluator and `gpt-4.1` judge.
-   Fabric IQ and Basic have independent evaluation cells and report URLs.
-   This Python helper handles schema mapping, polling and validation; it neither
-   calls the agents nor registers another evaluator in this mode.
-   `--result-file` writes to the fixed result path configured at the top.
-
-Only each case's `query` reaches the tested agent. The judge receives its generated
-answer plus the full reference context, expected answer, mandatory criteria and
-critical errors. Agent inference and judge inference both incur charges.
-There is no separate Groundedness run or required human grading.
-
-Each capture cell displays only its agent's answer. Each evaluation cell displays
-only that agent's Foundry pass/fail decision, reason, report URL and result counts.
-Setup and registration cells run no tests. There is no combined two-agent test
-cell. Two additional display cells show each agent's full `instructions` from
-`IQ_RESPONSE` and `BASIC_RESPONSE`, including Basic's embedded static snapshot,
-without new API calls or agent changes.
-Nothing grades text locally or replaces a cloud decision. `dimension` values
-remain custom labels in the supplied rubric, not built-in Foundry metrics.
-Known judge misreadings and incomplete reference context can still affect results.
-One case does not establish general superiority.
-
-Local audit copies are written to the gitignored
-`evaluations/notebook_runs/p100-permit/` directory. `IQ_RESPONSE_FILE` and
-`BASIC_RESPONSE_FILE` identify the fixed raw agent-answer files.
-`IQ_RESULT_FILE` and `BASIC_RESULT_FILE` identify the fixed evaluation files.
-Each agent cell refreshes its answer in the same fixed files. Each execution of a
-judge cell starts a new evaluation of the saved capture and updates only that
-agent's fixed result file, rather than creating a timestamped file. Older files
-outside these fixed paths are not deleted. Displaying results calls neither model.
-If polling times out, use the printed result path with
-`evaluate_business.py --endpoint ... --resume <RESULT.json>` to continue the
-existing run. Historical captures under
-[archive/manual_runs/](evaluations/archive/manual_runs/) and the
-optional manual-review mode remain available, but this notebook does not require
-or use human grading.
-This explicit capture-then-evaluate path avoids the tool invocation failures
-observed with Fabric IQ through Foundry's agent-target-completions path.
+For Foundry business judgments, use the complete suite below. It generates new
+answers independently; its judgments do not apply to the diagnostic captures.
 
 ### Run all six business cases
 
 Open [business_all_tests.ipynb](notebooks/business_all_tests.ipynb) with the Bash
-kernel. Seven code cells configure the run, publish and pin its reference, capture each agent's six answers,
-judge each saved set and display the comparison. Agent versions are pinned to
-Fabric IQ v8 and Basic v6; custom evaluator version 7 is reused without creating
-another version.
+kernel. Five code cells configure the run, publish and pin its reference, run
+each agent's six-case evaluation and display the comparison. Agent versions are
+pinned to Fabric IQ v8 and Basic v6; custom evaluator v13 is reused.
 
-Capture cells use `evaluate_business.py --agent NAME --agent-version VERSION
---capture-only --reference-asset FILE --output-dir DIRECTORY`. Each execution makes one fresh request
-per dataset question, sends only `query` in a fresh context and overwrites fixed
-`B-001.response.json` / `B-001.capture.json` files through B-006. Raw responses
-retain tool details; captures add agent identity, reference hash and provenance.
-There are no automatic agent-request retries.
+Each agent cell uses `evaluate_business.py --agent NAME --agent-version VERSION
+--reference-asset FILE --evaluator-version 13 --result-file FILE`.
+The runner submits `azure_ai_target_completions` with the existing reference's
+`file_id`. Foundry generates the six answers and applies two evaluators to each:
+the prompt-based judge (`project-planning-business-correctness`, PASS or FAIL
+with one quoted line per criterion) and the code-based
+`project-planning-business-anchors`, which scores the share of required IDs,
+e-mail addresses and numbers found in the answer without an LLM. The anchor
+evaluator is registered automatically and reused while its code is unchanged.
+The agent input template contains only `{{item.query}}`; reference evidence and
+criteria are mapped only to the judge, whose response comes from `{{sample.output_text}}`.
 
-Fabric IQ v8 requires the first `ask_ontology.request` to copy the complete user
-message, including the entire email or article body. Business captures verify
-this against the actual tool arguments, ignoring whitespace differences only.
-Missing or shortened handoffs are saved as `status: error` with the raw response
-and are rejected again before judging, even if Azure reports `completed`.
-The B-001 notebook checks its direct CLI capture before displaying the answer.
-Old non-verbatim captures must be recaptured rather than silently reused.
+The equivalent terminal command uses the canonical JSONL by default:
 
-This is transport validation, not local business grading. The managed Foundry
-tool call has already executed when its trace becomes available; the check
-detects a violation and blocks evaluation, rather than repairing or retrying it.
-Portal-only conversations receive the new instructions but not this local
-capture gate. A successful individual run is not proof of deterministic routing.
-Version 8 preserves version 7's model, temperature and tool configuration.
+```bash
+.venv/bin/python scripts/evaluate_business.py \
+  --endpoint "$FOUNDRY_PROJECT_ENDPOINT" \
+  --agent project-planning-agent --agent-version 8 --evaluator-version 13
+```
 
-Judge cells use `--captured-responses DIRECTORY/*.capture.json
---evaluator-version 7 --result-file FILE`, without `--case-id`. This requires
-exactly the complete dataset for each supplied agent and rejects duplicate,
-failed or mismatched captures before submitting an evaluation. Supplying
-`--case-id B-001` retains the single-case workflow. Judging never calls the agents.
+There is no separate capture phase, no inline input and no local pre-judge
+handoff gate in this managed path. Agent v8's instructions still require the
+verbatim handoff; use the diagnostic notebooks to inspect raw Responses traces.
+The successful six-case direct-path verification does not guarantee every future
+Fabric tool call or judge decision succeeds.
 
 All suite files are under the separate, gitignored
 `evaluations/notebook_runs/all-business-tests/` directory:
 
-* `fabric-iq/` and `basic/`: six raw responses and six captures per agent
 * `fabric-iq.evaluation.json` and `basic.evaluation.json`: one report per agent,
-  each containing six Foundry decisions
+  each containing six generated answers under `output_items[].sample` and six
+  Foundry decisions
 * `comparison.json`: twelve case decisions with their agent identities and reasons
 * `reference.asset.json`: immutable Foundry reference ID, version and SHA-256
 * `reference.asset.data.jsonl`: verified download of that reference version
@@ -581,48 +529,57 @@ not per-case outcomes. Open an entry and its last run to inspect its metrics
 and individual decisions. Use the notebook's table for a direct cross-agent
 comparison; the saved reports retain both judges' reasons.
 
-Re-execute only the judge cells to evaluate saved answers again. Capture cells
-refresh answers; judge cells refresh reports; neither touches the B-001 files.
+Re-executing an agent-evaluation cell generates new answers and new judgments.
+To continue polling an existing run without new inference, use
+`evaluate_business.py --endpoint ... --resume <RESULT.json>`.
 The notebook links the inputs and outputs directly below every code cell.
 One full run makes twelve agent requests and two evaluation runs containing twelve
-individual judgments. The runner's other CLI modes remain available.
+individual judgments. It does not touch the standalone diagnostic files.
 
 ### Local references and Foundry datasets
 
 Agents and judges already execute in Foundry. Local test definitions and saved
-answers do not mean that evaluation happens locally: the runner sends the
-generated answers and full reference fields to Foundry's evaluation API.
+answers do not mean that evaluation happens locally. For regular tests, the
+runner passes the reference dataset ID and the pinned agent to Foundry.
 
-The runner uploads the complete judge input as JSONL and submits its registered
-`file_id`, not inline `file_content`. Stable names are
-`project-planning-business-reference-cases` for the canonical six-case reference and
-`project-planning-business-inputs-AGENT_NAME` for each agent's generated inputs.
-Versions use the first 16 hexadecimal characters of the file's SHA-256.
-Identical files reuse the existing version; changed answers or references get
-new versions. Neither agent identity nor calibration labels are judge fields.
+Foundry contains one dataset name, `project-planning-business-reference-cases`,
+for the canonical six-case reference. Versions use the first 16 hexadecimal
+characters of the file's SHA-256. Identical reference files reuse a version;
+changed references get new versions.
+
+Direct runs reuse this reference and do not submit `file_content`. The verified
+six-case run created no additional dataset. Inline was briefly used to submit
+precomputed answers, but Foundry persisted those inputs as `eval-data-*`.
+It is a transport option, not a no-storage guarantee.
+
+Cloud judging of saved captures, recorded-run replays and synthetic calibration
+controls is disabled. The corresponding CLI options fail before cloud access,
+including the former implicit calibration default. Rubric replay is disabled too;
+the canonical reference supports the custom business evaluator. Local controls,
+offline regression helpers and historical reports remain available.
 
 All business notebooks publish the canonical JSONL through `--publish-reference`, saving
-its pinned ID/version/hash in `reference.asset.json`. Capture and judge steps
+its pinned ID/version/hash in `reference.asset.json`. Diagnostic and evaluation steps
 use `--reference-asset` to download that exact Foundry version and verify its
 ID, endpoint and complete SHA-256 before using it. Local files are audit copies,
 not an independently selected reference. To use an older version, retain its
-manifest and matching captures instead of republishing the current source.
+manifest instead of republishing the current source. Direct runs require JSONL,
+not the editable JSON source.
 
-Earlier inline runs have accumulated timestamped `eval-data-*` assets. These are run inputs,
-not additional independent test suites. Keep referenced historical inputs when
-their reports must remain reproducible; do not delete them without checking run
-references and retention requirements.
+Existing registered answer and calibration inputs are removed during the
+single-dataset cleanup. Historical evaluation reports remain, but their old
+`file_id` requests cannot be replayed after deletion. Retain local captures and
+complete run reports for inspection; cloud judge-only replay is disabled.
 
 The runner also reuses each agent's evaluation definition when its pinned
-reference, case scope, evaluator and judge settings match. Every judging
-execution still creates a separate run. A questions-only dataset cannot replace
-the answers being judged.
+reference, case scope, evaluator and judge settings match. Each fresh execution
+creates a separate run; Foundry supplies the answers generated from that reference.
 
 Foundry supports both inline `file_content` and registered `file_id` sources;
 see [Evaluate existing datasets](https://learn.microsoft.com/en-us/azure/foundry/observability/how-to/cloud-evaluation-datasets).
-The one-time consolidation removes superseded reference assets only; technical
-answer/calibration datasets and evaluation reports remain. Old runs referring to
-deleted reference versions cannot be replayed directly.
+Only the canonical reference is published by GitHub Actions. Calibration exports
+remain local. Old runs referring to deleted dataset versions cannot be replayed
+directly.
 
 ### Evaluation file layout
 
@@ -632,7 +589,7 @@ The B-001 walkthrough needs
 and the fixed files directly under
 [p100-permit/](evaluations/notebook_runs/p100-permit/).
 
-Optional CLI modes and automated tests still use
+Offline tests and historical investigations still use
 [business_reference.jsonl](evaluations/generated/business_reference.jsonl),
 [business_judge_controls.json](evaluations/business_judge_controls.json),
 [business_tests_v2.json](evaluations/archive/business_tests_v2.json)
@@ -640,8 +597,8 @@ and the two reduced, frozen replay inputs retained in
 [tests/fixtures/business/](tests/fixtures/business/).
 The exact five-case reference before B-006 was added is preserved as
 [business_tests_v3.json](evaluations/archive/business_tests_v3.json). Adding a
-case changes the dataset hash; refresh suite captures before judging with the
-new reference. Historical captures can use their matching archived reference.
+case changes the dataset hash; publish and pin the new reference for the next
+direct suite run. Historical captures retain their matching archived reference.
 
 Other historical run results, manual captures, baseline snapshots and previous
 notebook runs are retained locally under [archive/](evaluations/archive/), grouped
@@ -654,25 +611,16 @@ deleted. Archived generated snapshots and captures remain gitignored.
 
 ### Foundry rubric evaluator trial
 
-`evaluate_business.py --evaluator-kind rubric` uses a Foundry-managed
+The historical `evaluate_business.py --evaluator-kind rubric` trial used a Foundry-managed
 `type: rubric` evaluator, not our custom judge prompt. Version 1 of
 `project-planning-business-rubric` has five equally weighted dimensions:
 `shared_data`, `ontology_policy`, `uncertainty`, `critical_errors` and
 `general_quality`. Non-applicable dimensions are excluded by Foundry.
 The normalized pass threshold is the documented default, 0.5.
 
-The trial replays the exact ten answers from the latest valid notebook comparison:
-
-```bash
-.venv/bin/python scripts/evaluate_business.py \
-  --endpoint "$FOUNDRY_PROJECT_ENDPOINT" \
-  --evaluator-kind rubric --evaluator-version 1 --judge-model gpt-4.1 \
-  --compare-runs \
-  evaluations/archive/notebook_runs/20261113T155608050335277Z/fabric-iq/evalrun_da75930c6a1d46aa9299df1ed0297de6.json \
-  evaluations/archive/notebook_runs/20261113T155608050335277Z/basic/evalrun_794c3a7dadb2425fa7312bd29a33d90d.json
-```
-
-No agent is called again. Only the Foundry judge incurs inference charges.
+The trial replayed the exact ten answers from a valid notebook comparison.
+This cloud-replay mode is now disabled to prevent additional input datasets.
+No agent was called again. Only the Foundry judge incurred inference charges.
 The original question remains unchanged. A separate `rubric_query` reference
 packet supplies the original question, context, expected answer and criteria
 only to the evaluator; agent identity is not mapped to the judge.
@@ -712,23 +660,23 @@ the evaluator name and definition hash is added by the runner. Without
 only if its persisted definition matches the local JSON. Editing the file alone
 does not update an existing evaluator in Foundry.
 
-The existing [evaluate_business.py](scripts/evaluate_business.py) command remains
-the entry point with unchanged arguments and notebook calls. It delegates to:
+The [evaluate_business.py](scripts/evaluate_business.py) command remains the
+entry point. New cloud evaluations require `--agent` and `--agent-version`;
+recorded-answer and calibration options are rejected explicitly. Related helpers are:
 
 * [business_rubric_evaluator.py](scripts/business_rubric_evaluator.py) for the separate
   weighted rubric definition
 * [business_evaluation_data.py](scripts/business_evaluation_data.py) for recorded
   answers, comparison cases, calibration inputs and provenance checks
 * [business_evaluation_runtime.py](scripts/business_evaluation_runtime.py) for
-  evaluator registration, live response capture, data mapping and Foundry runs
+  evaluator registration, existing-dataset agent invocation and Foundry runs
 * [business_evaluation_results.py](scripts/business_evaluation_results.py) for
   validating and summarizing Foundry decisions
 
-The runtime reuses response capture from
-[manual_agent_test.py](scripts/manual_agent_test.py) and run polling and persistence
-from [evaluate_agent.py](scripts/evaluate_agent.py). Evaluator definitions and
-workflow helpers each have a single source; splitting them doesn't change prompts,
-rubric dimensions, scoring, output formats or cloud configuration.
+Capture-only diagnostics reuse [manual_agent_test.py](scripts/manual_agent_test.py).
+Direct business evaluation reuses the dataset-ID target request, run polling and
+persistence from [evaluate_agent.py](scripts/evaluate_agent.py). The editable
+evaluator definition and the canonical reference remain the scoring sources.
 
 The judge
 receives the question, candidate response, reference context, expected answer,
@@ -738,7 +686,7 @@ business claim. Missing facts and contradictory deadlines must fail; correct fac
 cannot offset them. The judge's reason lists criterion decisions and answer evidence.
 This remains an LLM judgment, not a guarantee of correct grading.
 
-The regression replays the actual B-001 baseline response from the historical
+The historical regression replayed the actual B-001 baseline response from the
 Foundry run, including its invented four-week escalation deadline. Three explicit
 synthetic controls in
 [business_judge_controls.json](evaluations/business_judge_controls.json) test a
@@ -749,22 +697,10 @@ Reference changes stop replay so stale evidence cannot be mixed silently.
 The pre-consolidation reference is archived for these historical responses;
 fresh comparisons use the active dataset with the merged email policy.
 
-```bash
-.venv/bin/python scripts/evaluate_business.py \
-  --endpoint "$FOUNDRY_PROJECT_ENDPOINT" \
-  --dataset evaluations/archive/business_tests_v2.json
-```
-
-Registration, judgment and per-case results happen in Foundry. The script only
-submits existing texts, waits, saves a local audit copy and checks whether the
-Foundry decisions match the known calibration labels. Those labels are not sent
-to the judge. No tested agent is called or changed, and Fabric is not accessed.
-Only judge inference incurs charges. Each invocation registers a new version and
-starts a new run; `--resume evaluations/runs/<RUN_ID>.json` resumes polling without
-creating another evaluator or evaluation. The evaluator definition is verified by
-readback, and its version, prompt hash, source hashes and report URL are retained.
-A nonzero exit indicates failed calibration or an execution error; expected rejection
-of the deliberately wrong responses is successful calibration.
+These controls remain local regression inputs, not an enabled cloud workflow.
+There is no implicit calibration run when `--agent` is omitted.
+`--resume evaluations/runs/<RUN_ID>.json` can still retrieve an existing run
+without submitting new inputs or creating another evaluator or evaluation.
 
 Custom evaluators are a Foundry preview feature. Registration explicitly sends the
 service-required `Foundry-Features: Evaluations=V1Preview` opt-in header.
@@ -775,25 +711,9 @@ See
 [prompt-based custom evaluators](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/custom-evaluators#prompt-based-evaluators).
 The existing manual notebook and Groundedness evaluator remain separate and unchanged.
 
-To compare all five previously recorded answers from each agent using the same
-calibrated evaluator, run:
-
-```bash
-.venv/bin/python scripts/evaluate_business.py \
-  --endpoint "$FOUNDRY_PROJECT_ENDPOINT" --evaluator-version 2 \
-  --dataset evaluations/archive/business_tests_v2.json \
-  --compare-runs \
-  evaluations/runs/evalrun_561e13fcca05413ebdec5422a4cba9ab.json \
-  evaluations/runs/evalrun_37a9833521b0411a866a1fb88d56f950.json
-```
-
-The script verifies identical source dataset hashes and current per-case references,
-replays actual answers without new agent calls and maps only evaluation inputs to
-the judge. Agent names and historical Groundedness scores are not supplied to it.
-All business decisions are made in Foundry; the local summary only groups those
-decisions by the recorded agent and case. A valid low business score is a comparison
-result, not an execution error. The full five-case comparison is not a regression
-calibration with predetermined expected labels.
+Previously recorded-answer comparisons are retained as historical evidence only.
+New comparisons use two direct agent runs against the same pinned reference.
+A valid low business score is a comparison result, not an execution error.
 
 ### Fresh comparison after consolidating the email policy
 
@@ -827,15 +747,8 @@ this run does not isolate the effect of merging the rules. Fabric IQ uses live
 data, while Basic-Agent v2 retains its earlier snapshot, without the newly
 imported P-200 offer. No notification tool was added and no email was sent.
 
-To replay the new answers with the active reference:
-
-```bash
-.venv/bin/python scripts/evaluate_business.py \
-  --endpoint "$FOUNDRY_PROJECT_ENDPOINT" --evaluator-version 2 \
-  --compare-runs \
-  evaluations/archive/runs/evalrun_da4ef9ca40b9485c9c949a96851a0da3.json \
-  evaluations/archive/runs/evalrun_290c20ea6a85470190bced666d35212c.json
-```
+The saved reports remain historical evidence. Rejudging these saved answers in
+the cloud is disabled; the current suite starts new direct agent runs instead.
 
 ### Current-data comparison with Basic-Agent v3
 
@@ -853,13 +766,8 @@ curated per-case context, although it exists in both agents' source data.
 The local, unversioned report `evalrun_f5b1fefb522e47ddb00d14abe6d3a35d.json`
 retains the cloud decisions, data-parity verification and review caveats.
 
-```bash
-.venv/bin/python scripts/evaluate_business.py \
-  --endpoint "$FOUNDRY_PROJECT_ENDPOINT" --evaluator-version 2 \
-  --compare-runs \
-  evaluations/archive/runs/evalrun_eb4a4cb7b69e46ee84f4a93ab849e53a.json \
-  evaluations/archive/runs/evalrun_f2dc41f7d9bf4ae79a0632b7d63cc938.json
-```
+These saved-answer comparisons predate the direct-dataset workflow and are no
+longer available as cloud replay commands.
 
 ### Optional Foundry Groundedness evaluation
 

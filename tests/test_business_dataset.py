@@ -105,12 +105,71 @@ class BusinessDatasetTests(unittest.TestCase):
                 conflicts[project["ProjectId"]] = date(2027, 8, 1) <= planned <= date(2027, 9, 30)
         self.assertEqual(conflicts, {"P-100": True, "P-200": False})
 
+    @staticmethod
+    def core(case: dict, ignored: frozenset = frozenset()) -> dict:
+        """The case without evaluation-only annotations (absence flags, anchors) added after the archive."""
+        result = {key: value for key, value in case.items() if key not in ignored}
+        result["criteria"] = [
+            {k: v for k, v in item.items() if k not in ("absence", "anchors")} for item in case["criteria"]
+        ]
+        return result
+
     def test_supplier_replacement_preserves_other_five_cases(self) -> None:
         previous = json.loads((ROOT / "evaluations/archive/business_tests_before_supplier_scenario.json").read_text())
+        changed = {"B-002", "B-003", "B-005", "B-006"}
         self.assertEqual(
-            [case for case in self.cases if case["id"] != "B-005"],
-            [case for case in previous["test_cases"] if case["id"] != "B-005"],
+            [self.core(case) for case in self.cases if case["id"] not in changed],
+            [self.core(case) for case in previous["test_cases"] if case["id"] not in changed],
         )
+
+    def test_b003_and_b006_differ_from_the_archive_only_by_annotations_and_the_moved_label_note(self) -> None:
+        previous = json.loads((ROOT / "evaluations/archive/business_tests_before_supplier_scenario.json").read_text())
+        for case_id, ignored in (("B-003", frozenset()), ("B-006", frozenset({"ground_truth"}))):
+            before = next(case for case in previous["test_cases"] if case["id"] == case_id)
+            after = next(case for case in self.cases if case["id"] == case_id)
+            with self.subTest(case=case_id):
+                self.assertEqual(self.core(before, ignored), self.core(after, ignored))
+
+    def test_b002_judge_context_adds_only_the_existing_e4_email(self) -> None:
+        previous = json.loads((ROOT / "evaluations/archive/business_tests_before_supplier_scenario.json").read_text())
+        before = next(case for case in previous["test_cases"] if case["id"] == "B-002")
+        after = next(case for case in self.cases if case["id"] == "B-002")
+        ignored = frozenset({"context", "sources"})
+        self.assertEqual(self.core(before, ignored), self.core(after, ignored))
+        e4 = "E-4,P-200,team@isar.example,Holiday schedule,Our office is closed from 20 December to 3 January.,2026-11-02"
+        self.assertIn(e4, after["context"])
+        self.assertEqual(after["context"].replace(f"[data/emails.csv, MailId=E-4]\n{e4}\n\n", ""), before["context"])
+
+    def test_b005_mandatory_points_are_atomic_criteria(self) -> None:
+        case = next(case for case in self.cases if case["id"] == "B-005")
+        ids = [item["id"] for item in case["criteria"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue({
+            "dl100_delivery", "dl100_project", "dl100_task", "dl100_conflict",
+            "clarify_supplier_confirmation", "clarify_replacement_date", "clarify_dependencies", "clarify_buffers",
+            "alt_availability", "alt_quantity_needed", "alt_quantity_value", "alt_price", "alt_approval",
+            "dl200_no_guarantee", "alt_not_self",
+        } <= set(ids))
+        retired = {"affected_delivery", "unaffected_delivery", "investigation", "alternative_uncertainty",
+                   "dl100_ids", "dl200_ids", "clarify_supplier", "alt_availability_quantity", "alt_price_approval"}
+        self.assertFalse(retired & set(ids))
+        absence = {item["id"] for item in case["criteria"] if item.get("absence")}
+        self.assertEqual(absence, {"dl200_no_guarantee", "resume_not_verified", "alt_not_self", "alt_no_reorder", "policy_scope"})
+
+    def test_anchors_are_well_formed_and_visible_in_the_criterion_text(self) -> None:
+        for case in self.cases:
+            for item in case["criteria"]:
+                for anchor in item.get("anchors", []):
+                    alternatives = anchor if isinstance(anchor, list) else [anchor]
+                    with self.subTest(case=case["id"], criterion=item["id"]):
+                        self.assertTrue(alternatives and all(isinstance(a, str) and a.strip() for a in alternatives))
+                        self.assertTrue(any(a in item["description"] for a in alternatives))
+                        self.assertFalse(item.get("absence"), "A prohibition cannot require an anchor")
+
+    def test_judge_instructions_are_not_part_of_ground_truth(self) -> None:
+        for case in self.cases:
+            self.assertNotIn("Quellenlabel", case["ground_truth"])
+            self.assertNotIn("fabric-iq-ontology", case["ground_truth"])
 
     def test_alternative_supplier_is_linked_by_portfolio_not_by_existing_deliveries(self) -> None:
         def rows(table):

@@ -3,7 +3,6 @@
 import hashlib
 import json
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 from azure.ai.projects import AIProjectClient
@@ -14,7 +13,7 @@ from azure.storage.blob import BlobClient
 from manual_agent_test import load_dataset
 from foundry_datasets import (
     CATALOG, REFERENCE_NAME, REFERENCE_PATH, REFERENCE_SOURCE,
-    check_datasets, jsonl_bytes, render_datasets,
+    check_datasets, render_datasets,
 )
 
 
@@ -62,14 +61,3 @@ def download_reference(project: AIProjectClient, endpoint: str, manifest: Path) 
     snapshot.write_bytes(content)
     load_dataset(snapshot)
     return snapshot
-
-
-def register_evaluation_data(
-    project: AIProjectClient, rows: list[dict], *, agent_names: list[str],
-) -> dict:
-    names = set(agent_names)
-    suffix = next(iter(names)) if len(names) == 1 else "comparison" if names else "calibration"
-    with TemporaryDirectory() as directory:
-        path = Path(directory) / "inputs.jsonl"
-        path.write_bytes(jsonl_bytes(rows))
-        return register_file(project, f"project-planning-business-inputs-{suffix}", path)

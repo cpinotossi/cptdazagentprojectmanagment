@@ -157,6 +157,9 @@ def publish_datasets(project: "AIProjectClient", items: list[dict], manifest: Pa
     check_datasets(items)
     if manifest.resolve() in {item["path"] for item in items}:
         raise ValueError("Release manifest must not overwrite a dataset")
+    items = [item for item in items if item["kind"] == "cases"]
+    if not items:
+        raise ValueError("Calibration inputs are local-only; select the canonical reference for publication")
     record = {
         "schema_version": 1, "project_endpoint": endpoint,
         "git_sha": os.environ.get("GITHUB_SHA"), "status": "publishing", "datasets": [],
@@ -182,7 +185,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=("generate", "check", "publish"))
     parser.add_argument("--catalog", type=Path, default=CATALOG)
-    parser.add_argument("--dataset", action="append", help="Select names for publication; repeatable")
+    parser.add_argument("--dataset", action="append", help="Select catalog entries; calibration is local-only")
     parser.add_argument("--endpoint", default=os.environ.get("FOUNDRY_PROJECT_ENDPOINT"))
     parser.add_argument("--manifest", type=Path, default=ROOT / "evaluations/releases/datasets.json")
     parser.add_argument("--confirm", action="store_true", help="Authorize creating Foundry dataset versions")
@@ -213,7 +216,8 @@ def main() -> None:
         with AIProjectClient(endpoint=args.endpoint, credential=AzureCliCredential()) as project:
             publish_datasets(project, items, args.manifest, args.endpoint)
     for item in items:
-        print(f"{item['name']}: {item['row_count']} rows, version {item['sha256'][:16]}")
+        scope = " (local only)" if item["kind"] == "calibration" else ""
+        print(f"{item['name']}: {item['row_count']} rows, version {item['sha256'][:16]}{scope}")
 
 
 if __name__ == "__main__":

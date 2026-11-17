@@ -136,6 +136,29 @@ class FoundryDatasetCatalogTests(unittest.TestCase):
         self.assertEqual(result["status"], "published")
         self.assertEqual(json.loads(manifest.read_text())["datasets"][0]["version"], digest[:16])
 
+    def test_publication_never_uploads_local_calibration_inputs(self) -> None:
+        items = datasets.render_datasets(self.catalog)
+        calibration = {
+            **items[0], "kind": "calibration", "name": "controls",
+            "path": self.root / "controls.jsonl",
+        }
+        for item in [*items, calibration]:
+            item["path"].write_bytes(item["content"])
+        project = Mock()
+        project.datasets.get.return_value = SimpleNamespace(id="asset-id")
+        asset = {
+            "id": "asset-id", "name": "cases",
+            "version": items[0]["sha256"][:16], "sha256": items[0]["sha256"],
+        }
+        with patch("business_evaluation_datasets.register_file", return_value=asset) as register:
+            result = datasets.publish_datasets(
+                project, [*items, calibration], self.root / "release.json", "endpoint",
+            )
+        register.assert_called_once_with(project, "cases", items[0]["path"])
+        self.assertEqual([entry["name"] for entry in result["datasets"]], ["cases"])
+        with self.assertRaisesRegex(ValueError, "local-only"):
+            datasets.publish_datasets(project, [calibration], self.root / "release.json", "endpoint")
+
     def test_output_policy_keeps_notebooks_and_generated_jsonl_but_ignores_run_files(self) -> None:
         def ignored(path: str) -> bool:
             result = subprocess.run(

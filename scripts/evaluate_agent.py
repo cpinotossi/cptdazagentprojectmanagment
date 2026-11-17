@@ -182,9 +182,15 @@ def wait_for_run(client: OpenAI, record: dict, result_path: Path, timeout: int) 
 
 
 def finish_run(client: OpenAI, record: dict, run: RunRetrieveResponse, result_path: Path) -> None:
-    items = list(client.evals.runs.output_items.list(
-        record["run_id"], eval_id=record["evaluation_id"], limit=100,
-    ))
+    expected = record["dataset"]["case_count"]
+    for attempt in range(7):
+        items = list(client.evals.runs.output_items.list(
+            record["run_id"], eval_id=record["evaluation_id"], limit=100,
+        ))
+        # Foundry can report a completed run before every output item is listed.
+        if run.status != "completed" or len(items) == expected or attempt == 6:
+            break
+        time.sleep(10)
     record["output_items"] = [item.model_dump(mode="json") for item in items]
     record["summary"] = {
         "status": run.status,

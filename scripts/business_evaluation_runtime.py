@@ -1,4 +1,4 @@
-"""Register evaluators and submit live or recorded business-evaluation runs."""
+"""Run business evaluations through Foundry's existing-dataset agent target."""
 
 import hashlib
 import json
@@ -7,20 +7,75 @@ from pathlib import Path
 
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import TestingCriterionAzureAIEvaluator
+from azure.core.exceptions import ResourceNotFoundError
 from openai import OpenAI
 from openai.types.evals import RunCreateResponse
 
 from evaluate_agent import save_result
-from business_evaluation_datasets import register_evaluation_data
-from business_rubric_evaluator import RUBRIC_EVALUATOR_NAME, rubric_definition
-from manual_agent_test import capture_case, load_dataset, response_path
+from business_evaluation_datasets import register_file
+from evaluate_agent import run_body
+from foundry_datasets import REFERENCE_NAME
+from manual_agent_test import capture_case, load_dataset
 
 EVALUATOR_NAME = "project-planning-business-correctness"
 EVALUATOR_PATH = Path(__file__).resolve().parents[1] / "evaluations/evaluators/business_correctness.json"
+ANCHORS_NAME = "project-planning-business-anchors"
+ANCHORS_PATH = Path(__file__).resolve().parents[1] / "evaluations/evaluators/business_anchors.py"
+CORRECTNESS_CRITERION = "Business correctness"
+ANCHORS_CRITERION = "Business anchors"
 
 
 def evaluator_definition() -> dict:
     return json.loads(EVALUATOR_PATH.read_text(encoding="utf-8"))
+
+
+def anchors_definition() -> dict:
+    return {
+        "type": "code",
+        "code_text": ANCHORS_PATH.read_text(encoding="utf-8"),
+        "init_parameters": {
+            "type": "object", "required": ["deployment_name", "pass_threshold"],
+            "properties": {"deployment_name": {"type": "string"}, "pass_threshold": {"type": "number"}},
+        },
+        "metrics": {"anchors": {
+            "type": "ordinal", "desirable_direction": "increase", "min_value": 0.0, "max_value": 1.0,
+        }},
+        "data_schema": {
+            "type": "object", "required": ["item"],
+            "properties": {"item": {"type": "object", "properties": {"criteria": {"type": "string"}}}},
+        },
+    }
+
+
+def ensure_anchors_evaluator(project: AIProjectClient) -> str:
+    """Return the version whose code matches the workspace file, registering it when absent."""
+    definition = anchors_definition()
+    digest = hashlib.sha256(definition["code_text"].encode()).hexdigest()
+    try:
+        for version in project.evaluators.list_versions(name=ANCHORS_NAME):
+            if (version.metadata or {}).get("code_sha256") == digest:
+                return version.version
+    except ResourceNotFoundError:
+        pass
+    created = project.evaluators.create_version(
+        name=ANCHORS_NAME,
+        evaluator_version={
+            "name": ANCHORS_NAME,
+            "display_name": "Project planning business anchors",
+            "description": "Share of required IDs, e-mail addresses and numbers found in the generated answer; no LLM.",
+            "evaluator_type": "custom",
+            "categories": ["quality"],
+            "supported_evaluation_levels": ["turn"],
+            "metadata": {"code_sha256": digest},
+            "definition": definition,
+        },
+        headers={"Foundry-Features": "Evaluations=V1Preview"},
+    )
+    saved = project.evaluators.get_version(name=ANCHORS_NAME, version=created.version)
+    if saved.definition.as_dict().get("code_text") != definition["code_text"]:
+        raise RuntimeError("Persisted Foundry anchor evaluator code differs from the workspace file")
+    print(f"Foundry evaluator: {ANCHORS_NAME} version {created.version}", flush=True)
+    return created.version
 
 
 FIELDS = tuple(evaluator_definition()["data_schema"]["required"])
@@ -46,11 +101,37 @@ def capture_agent_cases(
 
 def evaluation_body(
     judge_model: str, evaluator_version: str, *, evaluator_kind: str = "custom",
+    anchors_version: str | None = None,
 ) -> dict:
-    rubric = evaluator_kind == "rubric"
-    fields = (*FIELDS, "rubric_query") if rubric else FIELDS
+    if evaluator_kind != "custom":
+        raise ValueError("Direct dataset runs support the custom business evaluator only")
+    fields = tuple(field for field in FIELDS if field != "response")
+    criteria = [
+        TestingCriterionAzureAIEvaluator(
+            type="azure_ai_evaluator",
+            name=CORRECTNESS_CRITERION,
+            evaluator_name=EVALUATOR_NAME,
+            evaluator_version=evaluator_version,
+            initialization_parameters={
+                "deployment_name": judge_model, "evaluation_level": "turn",
+                "threshold": 0.5,
+            },
+            data_mapping={
+                field: "{{sample.output_text}}" if field == "response" else "{{item." + field + "}}"
+                for field in FIELDS
+            },
+        ),
+    ]
+    if anchors_version:
+        criteria.append(TestingCriterionAzureAIEvaluator(
+            type="azure_ai_evaluator",
+            name=ANCHORS_CRITERION,
+            evaluator_name=ANCHORS_NAME,
+            evaluator_version=anchors_version,
+            initialization_parameters={"deployment_name": judge_model, "pass_threshold": 1.0},
+        ))
     return {
-        "name": "Project planning - B-001 business judge regression",
+        "name": "Project planning - direct agent business evaluation",
         "data_source_config": {
             "type": "custom",
             "item_schema": {
@@ -61,23 +142,9 @@ def evaluation_body(
                 },
                 "required": ["id", *fields],
             },
+            "include_sample_schema": True,
         },
-        "testing_criteria": [
-            TestingCriterionAzureAIEvaluator(
-                type="azure_ai_evaluator",
-                name="Business rubric" if rubric else "Business correctness",
-                evaluator_name=RUBRIC_EVALUATOR_NAME if rubric else EVALUATOR_NAME,
-                evaluator_version=evaluator_version,
-                initialization_parameters={
-                    "deployment_name": judge_model, "evaluation_level": "turn",
-                    **({} if rubric else {"threshold": 0.5}),
-                },
-                data_mapping=(
-                    {"query": "{{item.rubric_query}}", "response": "{{item.response}}"}
-                    if rubric else {field: "{{item." + field + "}}" for field in FIELDS}
-                ),
-            ),
-        ],
+        "testing_criteria": criteria,
     }
 
 
@@ -85,56 +152,30 @@ def create_agent_run(
     project: AIProjectClient, client: OpenAI, endpoint: str,
     dataset_path: Path, agent_name: str, agent_version: str, judge_model: str,
     evaluator_version: str | None = None,
-    *, output_dir: Path, evaluator_kind: str = "custom", comparison_id: str | None = None,
-    run_label: str | None = None,
-) -> dict:
-    cases, reference_sha = load_dataset(dataset_path)
-    agent = project.agents.get_version(agent_name=agent_name, agent_version=agent_version)
-    agent_ref = {"name": agent.name, "version": agent.version}
-    rows = []
-    sources = []
-    for case in cases:
-        path = response_path(output_dir / "responses", agent.name, agent.version, case["id"])
-        captured = capture_case(
-            project, endpoint, agent.name, agent.version, case, reference_sha, path,
-            human_review=False,
-        )
-        rows.append({
-            **{key: case[key] for key in ("id", "query", "context", "ground_truth")},
-            **{key: json.dumps(case[key], ensure_ascii=False)
-               for key in ("criteria", "critical_errors")},
-            "response": captured["answer"], "case_id": case["id"], "agent": agent_ref,
-            "source_response_id": captured["response"]["id"],
-        })
-        sources.append({
-            "path": str(path.resolve()), "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-            "case_id": case["id"], "response_id": captured["response"]["id"],
-        })
-    record = create_regression_run(
-        project, client, endpoint, rows,
-        {
-            "mode": "live", "source": str(dataset_path.resolve()),
-            "reference_sha256": reference_sha, "sources": sources,
-            "note": "Direct Foundry agent responses followed by full-rubric Foundry Evaluation. "
-                    "Only query is sent to the agent; reference evidence and criteria go to the judge.",
-        },
-        judge_model, evaluator_version, evaluator_kind=evaluator_kind,
-        comparison_id=comparison_id, run_label=run_label,
-    )
-    record["agent"] = agent_ref
-    return record
-
-
-def create_regression_run(
-    project: AIProjectClient, client: OpenAI, endpoint: str,
-    rows: list[dict], provenance: dict, judge_model: str,
-    evaluator_version: str | None = None,
     *, evaluator_kind: str = "custom", comparison_id: str | None = None,
     run_label: str | None = None,
 ) -> dict:
-    rubric = evaluator_kind == "rubric"
-    name = RUBRIC_EVALUATOR_NAME if rubric else EVALUATOR_NAME
-    definition = rubric_definition() if rubric else evaluator_definition()
+    if evaluator_kind != "custom":
+        raise ValueError("Direct dataset runs support the custom business evaluator only")
+    if dataset_path.suffix != ".jsonl":
+        raise ValueError("Direct agent evaluation requires the canonical reference JSONL, not a JSON source")
+    cases, reference_sha = load_dataset(dataset_path)
+    for row in map(json.loads, dataset_path.read_text(encoding="utf-8").splitlines()):
+        if "response" in row or not all(isinstance(row[field], str) for field in FIELDS if field != "response"):
+            raise ValueError("Direct agent inputs must contain reference strings and no saved response")
+    agent = project.agents.get_version(agent_name=agent_name, agent_version=agent_version)
+    agent_ref = {"name": agent.name, "version": agent.version}
+    rows = [
+        {
+            **{key: case[key] for key in ("id", "query", "context", "ground_truth")},
+            **{key: json.dumps(case[key], ensure_ascii=False)
+               for key in ("criteria", "critical_errors")},
+            "case_id": case["id"], "agent": agent_ref,
+        }
+        for case in cases
+    ]
+    name = EVALUATOR_NAME
+    definition = evaluator_definition()
     definition_sha = hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
     if evaluator_version:
         evaluator = project.evaluators.get_version(name=name, version=evaluator_version)
@@ -143,10 +184,9 @@ def create_regression_run(
             name=name,
             evaluator_version={
                 "name": name,
-                "display_name": "Project planning business rubric" if rubric else "Project planning business correctness",
-                "description": ("Equal-weight Foundry rubric trial against the existing business references."
-                                if rubric else "Binary mandatory-fact and critical-error evaluation, including escalation deadlines."),
-                **({} if rubric else {"evaluator_type": "custom"}),
+                "display_name": "Project planning business correctness",
+                "description": "Binary mandatory-fact and critical-error evaluation, including escalation deadlines.",
+                "evaluator_type": "custom",
                 "categories": ["quality"],
                 "supported_evaluation_levels": ["turn"],
                 "metadata": {"definition_sha256": definition_sha},
@@ -156,20 +196,16 @@ def create_regression_run(
         )
     saved = project.evaluators.get_version(name=name, version=evaluator.version)
     persisted = saved.definition.as_dict()
-    matches = (
-        all(persisted.get(key) == value for key, value in definition.items())
-        if rubric else persisted == definition
-    )
-    if not matches:
+    if persisted != definition:
         raise RuntimeError("Persisted Foundry evaluator definition differs from requested definition")
     print(f"Foundry evaluator: {evaluator.name} version {evaluator.version}", flush=True)
-    body = evaluation_body(judge_model, evaluator.version, evaluator_kind=evaluator_kind)
-    comparison = provenance.get("mode") in ("comparison", "live")
-    case_ids = sorted({row.get("case_id", row["id"]) for row in rows})
+    anchors_version = ensure_anchors_evaluator(project)
+    body = evaluation_body(
+        judge_model, evaluator.version, evaluator_kind=evaluator_kind, anchors_version=anchors_version,
+    )
+    case_ids = sorted(case["id"] for case in cases)
     scope = case_ids[0] if len(case_ids) == 1 else f"{case_ids[0]}..{case_ids[-1]}"
-    reference_sha = provenance.get("reference_sha256", "")
-    agents = sorted({(row["agent"]["name"], row["agent"]["version"]) for row in rows if "agent" in row})
-    agent_label = " vs ".join(f"{name} v{version}" for name, version in agents) or "Calibration"
+    agent_label = f"{agent.name} v{agent.version}"
     display_label = f"{run_label} | {agent_label}" if run_label else agent_label
     body["name"] = (
         f"{display_label} | {scope} | "
@@ -193,31 +229,13 @@ def create_regression_run(
         evaluation = client.post("/evals", cast_to=dict, body=body)
     if not isinstance(evaluation, dict) or not isinstance(evaluation.get("id"), str) or not evaluation["id"]:
         raise TypeError("Unexpected evaluation creation response")
-    submitted = [{key: row[key] for key in ("id", *FIELDS)} for row in rows]
-    if rubric:
-        for item in submitted:
-            item["rubric_query"] = json.dumps({
-                "original_question": item["query"], "reference_context": item["context"],
-                "expected_answer": item["ground_truth"],
-                "mandatory_criteria": json.loads(item["criteria"]),
-                "critical_errors": json.loads(item["critical_errors"]),
-            }, ensure_ascii=False)
-    # Identity stays in run metadata, never in the blinded judge's input.
+    dataset = register_file(project, REFERENCE_NAME, dataset_path)
     comparison_id = comparison_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
-    input_asset = register_evaluation_data(
-        project, submitted, agent_names=[name for name, _ in agents],
+    body = run_body(dataset["id"], agent.name, agent.version)
+    body["name"] = f"{display_label} | {comparison_id}"
+    body["metadata"].update(
+        comparison_id=comparison_id, agents=agent_label, reference_sha256=reference_sha,
     )
-    body = {
-        "name": f"{display_label} | {comparison_id}",
-        "data_source": {
-            "type": "jsonl",
-            "source": {"type": "file_id", "id": input_asset["id"]},
-        },
-        "metadata": {
-            "comparison_id": comparison_id, "agents": agent_label,
-            "reference_sha256": reference_sha, "input_version": input_asset["version"],
-        },
-    }
     run = client.post(
         f"/evals/{evaluation['id']}/runs", cast_to=RunCreateResponse,
         body=body,
@@ -227,14 +245,19 @@ def create_regression_run(
     record = {
         "schema_version": 1,
         "project_endpoint": endpoint,
+        "agent": agent_ref,
         "dataset": {
-            "case_count": len(rows), "cases": rows, **provenance,
-            "registered_input": input_asset,
+            **dataset, "source": str(dataset_path.resolve()),
+            "case_count": len(cases), "cases": rows, "mode": "live",
+            "execution": "azure_ai_target_completions", "reference_sha256": reference_sha,
+            "note": "Foundry invokes the pinned agent from the existing reference dataset and judges "
+                    "its generated answers. Only query reaches the agent; no inline inputs or local captures.",
         },
         "comparison_id": comparison_id,
         "evaluator": {
             "kind": evaluator_kind, "name": evaluator.name, "version": evaluator.version,
             "judge_model": judge_model, "definition_sha256": definition_sha, "definition": persisted,
+            "anchors": {"name": ANCHORS_NAME, "version": anchors_version},
         },
         "evaluation_id": evaluation["id"], "run_id": run.id,
         "evaluation": evaluation,
@@ -242,3 +265,16 @@ def create_regression_run(
         "output_items": [],
     }
     return record
+
+
+def create_regression_run(
+    project: AIProjectClient, client: OpenAI, endpoint: str,
+    rows: list[dict], provenance: dict, judge_model: str,
+    evaluator_version: str | None = None,
+    *, evaluator_kind: str = "custom", comparison_id: str | None = None,
+    run_label: str | None = None,
+) -> dict:
+    raise ValueError(
+        "Cloud judging of saved answers and calibration controls is disabled: "
+        "inline inputs create additional Foundry datasets. Use a direct --agent run instead."
+    )

@@ -1,6 +1,27 @@
 """Validate and summarize Foundry judgments without locally grading answers."""
 
 
+def judgments(item: dict, row_id: str) -> tuple[dict, dict | None]:
+    """Return the correctness judgment and the optional anchor score of one output item."""
+    if item.get("status") != "completed" or not item.get("results"):
+        raise ValueError(f"{row_id}: incomplete evaluation")
+    results = item["results"]
+    named = {result.get("name"): result for result in results}
+    correctness = named.get("Business correctness") or (
+        results[0] if len(results) == 1 and results[0].get("name") is None else None
+    )
+    if correctness is None:
+        raise ValueError(f"{row_id}: incomplete evaluation")
+    if correctness.get("status") != "completed" or type(correctness.get("passed")) is not bool:
+        raise ValueError(f"{row_id}: missing or errored Foundry decision")
+    anchors = named.get("Business anchors")
+    if anchors is not None and (
+        anchors.get("status") != "completed" or type(anchors.get("score")) not in (int, float)
+    ):
+        raise ValueError(f"{row_id}: missing or errored anchor score")
+    return correctness, anchors
+
+
 def comparison_summary(record: dict) -> dict:
     rows = {row["id"]: row for row in record["dataset"]["cases"]}
     seen = set()
@@ -11,11 +32,7 @@ def comparison_summary(record: dict) -> dict:
             raise ValueError("Comparison contains unexpected or duplicate decisions")
         seen.add(row_id)
         row = rows[row_id]
-        if item.get("status") != "completed" or len(item["results"]) != 1:
-            raise ValueError(f"{row_id}: incomplete evaluation")
-        result = item["results"][0]
-        if result.get("status") != "completed" or type(result.get("passed")) is not bool:
-            raise ValueError(f"{row_id}: missing or errored Foundry decision")
+        result, anchors = judgments(item, row_id)
         key = f"{row['agent']['name']}:v{row['agent']['version']}"
         agent = agents.setdefault(key, {"passed": 0, "failed": 0, "cases": {}})
         agent["passed" if result["passed"] else "failed"] += 1
@@ -23,6 +40,8 @@ def comparison_summary(record: dict) -> dict:
             "passed": result["passed"], "reason": result.get("reason"),
             **{field: row[field] for field in ("source_run_id", "source_response_id") if field in row},
         }
+        if anchors is not None:
+            agent["cases"][row["case_id"]]["anchor_score"] = anchors["score"]
         if record.get("evaluator", {}).get("kind") == "rubric":
             score = result.get("score")
             if type(score) not in (int, float) or not 0 <= score <= 1:

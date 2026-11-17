@@ -127,9 +127,27 @@ class EvaluationTests(unittest.TestCase):
         record = {"evaluation_id": "eval-id", "run_id": "run-id", "dataset": {"case_count": 10}}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "result.json"
-            with self.assertRaisesRegex(RuntimeError, "errored or missing"):
-                evaluate_agent.finish_run(client, record, run, path)
+            with patch.object(evaluate_agent.time, "sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "errored or missing"):
+                    evaluate_agent.finish_run(client, record, run, path)
+            self.assertEqual(sleep.call_count, 6)
             self.assertEqual(json.loads(path.read_text())["summary"]["result_counts"]["errored"], 1)
+
+    def test_items_listed_after_completion_are_awaited_instead_of_failing(self) -> None:
+        item = Mock()
+        item.model_dump.return_value = {"id": "item"}
+        client = Mock()
+        client.evals.runs.output_items.list.side_effect = [[item], [item, item]]
+        run = Mock(status="completed", report_url="https://foundry.example/report")
+        run.result_counts.errored = 0
+        run.result_counts.model_dump.return_value = {"errored": 0}
+        record = {"evaluation_id": "eval-id", "run_id": "run-id", "dataset": {"case_count": 2}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "result.json"
+            with patch.object(evaluate_agent.time, "sleep") as sleep:
+                evaluate_agent.finish_run(client, record, run, path)
+            sleep.assert_called_once_with(10)
+            self.assertEqual(len(record["output_items"]), 2)
 
 
 if __name__ == "__main__":

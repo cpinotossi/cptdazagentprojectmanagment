@@ -10,8 +10,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
-from openai.types.evals import RunCreateResponse
 from azure.core.exceptions import ResourceNotFoundError
+from openai.types.evals import RunCreateResponse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -22,32 +22,212 @@ import business_evaluation_datasets as datasets
 from business_evaluation_data import captured_cases, comparison_cases, recorded_answer, regression_cases
 from business_evaluation_results import comparison_summary, verify_regression
 
+ENSURE_ANCHORS = business.ensure_anchors_evaluator  # the real function; setUp patches the module attribute
 
-def dataset_project(project=None):
-    project = project if project is not None else Mock()
-    project.datasets.get.side_effect = ResourceNotFoundError
-    project.submitted = []
-
-    def upload(**kwargs):
-        project.submitted = [
-            json.loads(line) for line in Path(kwargs["file_path"]).read_text().splitlines()
+class DirectAgentEvaluationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dataset = ROOT / "evaluations/generated/business_reference.jsonl"
+        self.cases = [json.loads(line) for line in self.dataset.read_text().splitlines()]
+        self.project = Mock()
+        self.project.agents.get_version.return_value = SimpleNamespace(name="agent", version="8")
+        evaluator = self.project.evaluators.get_version.return_value
+        evaluator.name, evaluator.version = business.EVALUATOR_NAME, "11"
+        evaluator.definition.as_dict.return_value = business.evaluator_definition()
+        self.project.datasets.get.return_value = SimpleNamespace(id="canonical-reference-id")
+        self.client = Mock()
+        self.client.evals.list.return_value = []
+        self.client.post.side_effect = [
+            {"id": "eval-id"}, RunCreateResponse.model_construct(id="run-id"),
         ]
-        return SimpleNamespace(id="dataset-id", name=kwargs["name"], version=kwargs["version"])
+        patcher = patch.object(business, "ensure_anchors_evaluator", return_value="3")
+        self.ensure_anchors = patcher.start()
+        self.addCleanup(patcher.stop)
 
-    project.datasets.upload_file.side_effect = upload
-    return project
+    def create(self, **kwargs):
+        return business.create_agent_run(
+            self.project, self.client, "endpoint", self.dataset, "agent", "8", "judge",
+            **({"evaluator_version": "11"} | kwargs),
+        )
+
+    def test_existing_dataset_invokes_agent_and_maps_generated_answer_to_full_judge(self) -> None:
+        with patch.object(business, "capture_case") as capture:
+            record = self.create(comparison_id="pair", run_label="Fabric IQ")
+        capture.assert_not_called()
+        self.project.get_openai_client.assert_not_called()
+        self.client.responses.create.assert_not_called()
+        self.project.datasets.upload_file.assert_not_called()
+        digest = hashlib.sha256(self.dataset.read_bytes()).hexdigest()
+        self.project.datasets.get.assert_called_once_with(
+            name=datasets.REFERENCE_NAME, version=digest[:16],
+        )
+        evaluation = self.client.post.call_args_list[0].kwargs["body"]
+        schema = evaluation["data_source_config"]
+        self.assertTrue(schema["include_sample_schema"])
+        self.assertNotIn("response", schema["item_schema"]["required"])
+        criterion = evaluation["testing_criteria"][0]
+        self.assertEqual(criterion["name"], "Business correctness")
+        self.assertEqual(criterion["evaluator_version"], "11")
+        anchors = evaluation["testing_criteria"][1]
+        self.assertEqual(
+            (anchors["name"], anchors["evaluator_name"], anchors["evaluator_version"]),
+            ("Business anchors", business.ANCHORS_NAME, "3"),
+        )
+        self.assertNotIn("data_mapping", anchors)
+        self.assertEqual(record["evaluator"]["anchors"], {"name": business.ANCHORS_NAME, "version": "3"})
+        self.assertEqual(criterion["data_mapping"], {
+            field: "{{sample.output_text}}" if field == "response" else "{{item." + field + "}}"
+            for field in business.FIELDS
+        })
+        body = self.client.post.call_args.kwargs["body"]
+        source = body["data_source"]
+        self.assertEqual(source["type"], "azure_ai_target_completions")
+        self.assertEqual(source["source"], {"type": "file_id", "id": "canonical-reference-id"})
+        self.assertEqual(source["target"], {"type": "azure_ai_agent", "name": "agent", "version": "8"})
+        template = source["input_messages"]["template"]
+        self.assertEqual(template[0]["content"]["text"], "{{item.query}}")
+        for secret_field in ("context", "ground_truth", "criteria", "critical_errors"):
+            self.assertNotIn(secret_field, json.dumps(template))
+        self.assertNotIn("file_content", json.dumps(body))
+        self.assertEqual(body["metadata"]["comparison_id"], "pair")
+        self.assertEqual(record["dataset"]["id"], "canonical-reference-id")
+        self.assertEqual(record["dataset"]["reference_sha256"], digest)
+        self.assertNotIn("inline_input", record["dataset"])
+        self.assertEqual(record["agent"], {"name": "agent", "version": "8"})
+        self.project.evaluators.create_version.assert_not_called()
+        record["output_items"] = [
+            {"status": "completed", "datasource_item": case, "results": [
+                {"status": "completed", "passed": case["id"] != "B-005", "reason": "Cloud judgment"},
+            ]}
+            for case in self.cases
+        ]
+        summary = comparison_summary(record)["agents"]["agent:v8"]
+        self.assertEqual((summary["passed"], summary["failed"]), (5, 1))
+        record["output_items"].pop()
+        with self.assertRaisesRegex(ValueError, "missing"):
+            comparison_summary(record)
+
+    def test_summary_reads_results_by_name_and_keeps_the_anchor_score_separate(self) -> None:
+        record = {
+            "dataset": {"cases": [{"id": "B-001", "case_id": "B-001", "agent": {"name": "agent", "version": "8"}}]},
+            "output_items": [{
+                "status": "completed", "datasource_item": {"id": "B-001"},
+                "results": [
+                    {"name": "Business anchors", "status": "completed", "score": 0.5, "passed": False},
+                    {"name": "Business correctness", "status": "completed", "passed": True, "reason": "ok"},
+                ],
+            }],
+        }
+        case = comparison_summary(record)["agents"]["agent:v8"]["cases"]["B-001"]
+        self.assertEqual((case["passed"], case["anchor_score"]), (True, 0.5))
+        record["output_items"][0]["results"][0]["status"] = "error"
+        with self.assertRaisesRegex(ValueError, "anchor score"):
+            comparison_summary(record)
+        record["output_items"][0]["results"].pop(1)
+        with self.assertRaisesRegex(ValueError, "incomplete"):
+            comparison_summary(record)
+
+    def test_anchor_evaluator_is_reused_by_code_hash_and_registered_when_absent(self) -> None:
+        digest = hashlib.sha256(business.anchors_definition()["code_text"].encode()).hexdigest()
+        project = Mock()
+        project.evaluators.list_versions.return_value = [
+            SimpleNamespace(version="1", metadata=None),
+            SimpleNamespace(version="2", metadata={"code_sha256": digest}),
+        ]
+        self.assertEqual(ENSURE_ANCHORS(project), "2")
+        project.evaluators.create_version.assert_not_called()
+
+        project.evaluators.list_versions.side_effect = ResourceNotFoundError("missing")
+        project.evaluators.create_version.return_value = SimpleNamespace(version="1")
+        project.evaluators.get_version.return_value.definition.as_dict.return_value = {
+            "code_text": business.anchors_definition()["code_text"],
+        }
+        self.assertEqual(ENSURE_ANCHORS(project), "1")
+        registered = project.evaluators.create_version.call_args.kwargs["evaluator_version"]
+        self.assertEqual(registered["metadata"], {"code_sha256": digest})
+        self.assertEqual(registered["definition"]["type"], "code")
+        self.assertEqual(registered["definition"]["init_parameters"]["properties"]["pass_threshold"]["type"], "number")
+
+        project.evaluators.get_version.return_value.definition.as_dict.return_value = {"code_text": "other"}
+        with self.assertRaisesRegex(RuntimeError, "differs from the workspace"):
+            ENSURE_ANCHORS(project)
+
+    def test_reuses_evaluation_but_creates_a_new_run_for_the_same_configuration(self) -> None:
+        first = self.create(comparison_id="first", run_label="Fabric IQ")
+        definition = self.client.post.call_args_list[0].kwargs["body"]
+        self.client.evals.list.return_value = [
+            SimpleNamespace(id="eval-id", metadata=definition["metadata"]),
+        ]
+        self.client.evals.retrieve.return_value.model_dump.return_value = {"id": "eval-id", **definition}
+        self.client.post.side_effect = [RunCreateResponse.model_construct(id="second-run")]
+        second = self.create(comparison_id="second", run_label="Fabric IQ")
+        self.assertEqual(self.client.post.call_count, 3)
+        self.assertEqual(first["evaluation_id"], second["evaluation_id"])
+        self.assertNotEqual(first["run_id"], second["run_id"])
+        self.assertEqual(first["dataset"]["id"], second["dataset"]["id"])
+
+    def test_registration_reads_workspace_definition_and_verifies_its_hash(self) -> None:
+        definition = business.evaluator_definition()
+        definition["prompt_text"] += "\nAdditional workspace-only instruction."
+        self.project.evaluators.create_version.return_value = SimpleNamespace(
+            name=business.EVALUATOR_NAME, version="new",
+        )
+        self.project.evaluators.get_version.return_value.definition.as_dict.return_value = definition
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evaluator.json"
+            path.write_text(json.dumps(definition))
+            with patch.object(business, "EVALUATOR_PATH", path):
+                record = self.create(evaluator_version=None)
+        registered = self.project.evaluators.create_version.call_args.kwargs
+        self.assertEqual(registered["headers"], {"Foundry-Features": "Evaluations=V1Preview"})
+        self.assertEqual(registered["evaluator_version"]["definition"], definition)
+        digest = hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
+        self.assertEqual(record["evaluator"]["definition_sha256"], digest)
+
+    def test_invalid_or_mismatched_definition_stops_before_dataset_or_run_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evaluator.json"
+            for content, error in ((None, FileNotFoundError), ("{invalid", json.JSONDecodeError)):
+                with self.subTest(content=content):
+                    if content is not None:
+                        path.write_text(content)
+                    with patch.object(business, "EVALUATOR_PATH", path), self.assertRaises(error):
+                        self.create()
+        self.project.evaluators.get_version.return_value.definition.as_dict.return_value = {}
+        with self.assertRaisesRegex(RuntimeError, "differs from requested definition"):
+            self.create()
+        self.project.datasets.get.assert_not_called()
+        self.client.post.assert_not_called()
+
+    def test_saved_answers_noncanonical_json_and_rubric_cannot_enter_direct_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            for suffix, row in (
+                (".json", {"test_cases": self.cases}),
+                (".jsonl", self.cases[0] | {"response": "Saved answer"}),
+                (".jsonl", self.cases[0] | {"criteria": json.loads(self.cases[0]["criteria"])}),
+            ):
+                with self.subTest(suffix=suffix, keys=row.keys()):
+                    path = Path(directory) / f"reference{suffix}"
+                    path.write_text(json.dumps(row) + "\n")
+                    with self.assertRaises(ValueError):
+                        business.create_agent_run(
+                            self.project, self.client, "endpoint", path, "agent", "8", "judge", "11",
+                        )
+        with self.assertRaisesRegex(ValueError, "custom business evaluator only"):
+            self.create(evaluator_kind="rubric")
+        self.project.agents.get_version.assert_not_called()
+        self.project.datasets.get.assert_not_called()
+        self.client.post.assert_not_called()
+
+    def test_recorded_answer_and_calibration_runtime_is_blocked_without_cloud_calls(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Cloud judging.*is disabled"):
+            business.create_regression_run(
+                self.project, self.client, "endpoint", [], {}, "judge", "11",
+            )
+        self.assertEqual(self.project.mock_calls, [])
+        self.assertEqual(self.client.mock_calls, [])
 
 
 class BusinessEvaluationTests(unittest.TestCase):
-    def evaluation_client(self):
-        client = Mock()
-        client.evals.list.return_value = []
-        client.post.side_effect = [
-            {"id": "eval-id"},
-            RunCreateResponse.model_construct(id="run-id"),
-        ]
-        return client
-
     def setUp(self) -> None:
         self.source = ROOT / "tests/fixtures/business/replay_561e13fcca05413ebdec5422a4cba9ab.json"
         self.controls = ROOT / "evaluations/business_judge_controls.json"
@@ -55,44 +235,6 @@ class BusinessEvaluationTests(unittest.TestCase):
         self.rows, self.provenance = regression_cases(
             self.dataset, self.source, self.controls,
         )
-
-    def test_registration_reads_workspace_json_instead_of_a_python_definition(self) -> None:
-        definition = json.loads(business.EVALUATOR_PATH.read_text(encoding="utf-8"))
-        definition["prompt_text"] += "\nAdditional workspace-only instruction."
-        project = dataset_project()
-        project.evaluators.create_version.return_value = SimpleNamespace(
-            name=business.EVALUATOR_NAME, version="new",
-        )
-        project.evaluators.get_version.return_value.definition.as_dict.return_value = definition
-        client = self.evaluation_client()
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "evaluator.json"
-            path.write_text(json.dumps(definition), encoding="utf-8")
-            with patch.object(business, "EVALUATOR_PATH", path):
-                record = business.create_regression_run(
-                    project, client, "endpoint", self.rows, self.provenance, "judge",
-                )
-        registered = project.evaluators.create_version.call_args.kwargs["evaluator_version"]
-        self.assertEqual(registered["definition"], definition)
-        digest = hashlib.sha256(json.dumps(definition, sort_keys=True).encode()).hexdigest()
-        self.assertEqual(registered["metadata"]["definition_sha256"], digest)
-        self.assertEqual(record["evaluator"]["definition_sha256"], digest)
-
-    def test_missing_or_invalid_definition_fails_before_cloud_registration(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "evaluator.json"
-            for content, error in ((None, FileNotFoundError), ("{invalid", json.JSONDecodeError)):
-                with self.subTest(content=content):
-                    if content is not None:
-                        path.write_text(content, encoding="utf-8")
-                    project, client = Mock(), Mock()
-                    with patch.object(business, "EVALUATOR_PATH", path):
-                        with self.assertRaises(error):
-                            business.create_regression_run(
-                                project, client, "endpoint", self.rows, self.provenance, "judge",
-                            )
-                    project.evaluators.create_version.assert_not_called()
-                    client.post.assert_not_called()
 
     def test_regression_replays_actual_failure_and_rejects_changed_references(self) -> None:
         self.assertEqual([row["expected_pass"] for row in self.rows], [False, True, False, False])
@@ -118,97 +260,6 @@ class BusinessEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "exactly one response for every reference case"):
             comparison_cases(active, [self.source, other])
 
-    def test_registration_and_run_send_full_rubric_but_no_expected_labels_to_judge(self) -> None:
-        project = dataset_project()
-        project.evaluators.create_version.return_value = SimpleNamespace(
-            name=business.EVALUATOR_NAME, version="1",
-        )
-        project.evaluators.get_version.return_value.definition.as_dict.return_value = (
-            business.evaluator_definition()
-        )
-        client = self.evaluation_client()
-        record = business.create_regression_run(
-            project, client, "https://foundry.example", self.rows, self.provenance, "judge",
-        )
-        registered = project.evaluators.create_version.call_args.kwargs["evaluator_version"]
-        self.assertEqual(
-            project.evaluators.create_version.call_args.kwargs["headers"],
-            {"Foundry-Features": "Evaluations=V1Preview"},
-        )
-        self.assertEqual(registered["definition"]["metrics"]["business_correctness"]["type"], "boolean")
-        criterion = client.post.call_args_list[0].kwargs["body"]["testing_criteria"][0]
-        self.assertEqual(criterion["data_mapping"], {
-            field: "{{item." + field + "}}" for field in business.FIELDS
-        })
-        run_body = client.post.call_args_list[1].kwargs["body"]
-        self.assertEqual(run_body["data_source"]["type"], "jsonl")
-        self.assertEqual(run_body["data_source"]["source"], {"type": "file_id", "id": "dataset-id"})
-        for row in self.rows:
-            exported = next(item for item in project.submitted if item["id"] == row["id"])
-            self.assertEqual(exported, {key: row[key] for key in ("id", *business.FIELDS)})
-            self.assertNotIn("expected_pass", exported)
-            self.assertNotIn("origin", exported)
-        self.assertEqual(record["dataset"]["cases"], self.rows)
-        project.agents.create_version.assert_not_called()
-        project.get_openai_client.assert_not_called()
-        self.assertNotIn("target", run_body["data_source"])
-
-    def test_persisted_prompt_mismatch_stops_before_any_evaluation_is_created(self) -> None:
-        project = dataset_project()
-        project.evaluators.create_version.return_value = SimpleNamespace(
-            name=business.EVALUATOR_NAME, version="1",
-        )
-        definition = business.evaluator_definition()
-        definition["prompt_text"] = "Unexpected changed rubric"
-        project.evaluators.get_version.return_value.definition.as_dict.return_value = definition
-        client = Mock()
-        with self.assertRaisesRegex(RuntimeError, "differs from requested definition"):
-            business.create_regression_run(
-                project, client, "https://foundry.example", self.rows, self.provenance, "judge",
-            )
-        client.post.assert_not_called()
-
-    def test_comparison_replays_both_agents_and_reuses_calibrated_evaluator(self) -> None:
-        other = ROOT / "tests/fixtures/business/replay_37a9833521b0411a866a1fb88d56f950.json"
-        rows, provenance = comparison_cases(self.dataset, [self.source, other])
-        self.assertEqual(len(rows), 10)
-        self.assertEqual(len({row["id"] for row in rows}), 10)
-        self.assertEqual({row["case_id"] for row in rows}, {f"B-00{i}" for i in range(1, 6)})
-        self.assertTrue(all("expected_pass" not in row for row in rows))
-        for path in (self.source, other):
-            source = json.loads(path.read_text())
-            for item in source["output_items"]:
-                row = next(
-                    row for row in rows
-                    if row["agent"] == source["agent"] and row["case_id"] == item["datasource_item"]["id"]
-                )
-                self.assertEqual(row["response"], recorded_answer(item))
-        project = dataset_project()
-        evaluator = project.evaluators.get_version.return_value
-        evaluator.name = business.EVALUATOR_NAME
-        evaluator.version = "2"
-        evaluator.definition.as_dict.return_value = business.evaluator_definition()
-        client = self.evaluation_client()
-        record = business.create_regression_run(
-            project, client, "endpoint", rows, provenance, "judge", "2",
-        )
-        project.evaluators.create_version.assert_not_called()
-        self.assertEqual(record["evaluator"]["version"], "2")
-        for exported in project.submitted:
-            self.assertNotIn("agent", exported)
-            self.assertNotIn("source_run_id", exported)
-        record["output_items"] = [
-            {"status": "completed", "datasource_item": {"id": row["id"]},
-             "results": [{"status": "completed", "passed": row["id"].startswith("A2-"), "reason": "Evidence"}]}
-            for row in rows
-        ]
-        summary = comparison_summary(record)
-        self.assertEqual(summary["agents"]["project-planning-baseline:v2"]["failed"], 5)
-        self.assertEqual(summary["agents"]["project-planning-agent:v7"]["passed"], 5)
-        record["output_items"].pop()
-        with self.assertRaisesRegex(ValueError, "missing"):
-            comparison_summary(record)
-
     def test_comparison_rejects_duplicate_agents_and_mismatched_source_data(self) -> None:
         with self.assertRaisesRegex(ValueError, "distinct"):
             comparison_cases(self.dataset, [self.source, self.source])
@@ -225,136 +276,6 @@ class BusinessEvaluationTests(unittest.TestCase):
             path.write_text(json.dumps(source))
             with self.assertRaisesRegex(ValueError, "differs from current"):
                 comparison_cases(self.dataset, [self.source, path])
-
-    def test_runs_reuse_their_evaluation_but_keep_agents_and_run_ids_separate(self) -> None:
-        project = dataset_project()
-        evaluator = project.evaluators.get_version.return_value
-        evaluator.name, evaluator.version = business.EVALUATOR_NAME, "6"
-        evaluator.definition.as_dict.return_value = business.evaluator_definition()
-        row = self.rows[0] | {"agent": {"name": "iq-agent", "version": "7"}, "case_id": "B-001"}
-        provenance = {"mode": "comparison", "reference_sha256": "a" * 64}
-        client = self.evaluation_client()
-        first = business.create_regression_run(
-            project, client, "endpoint", [row], provenance, "judge", "6",
-            comparison_id="pair-1", run_label="Fabric IQ",
-        )
-        definition = client.post.call_args_list[0].kwargs["body"]
-        client.evals.list.return_value = [
-            SimpleNamespace(id="eval-id", metadata=definition["metadata"]),
-        ]
-        client.evals.retrieve.return_value.model_dump.return_value = {"id": "eval-id", **definition}
-        client.post.side_effect = [RunCreateResponse.model_construct(id="second-run")]
-        second = business.create_regression_run(
-            project, client, "endpoint", [row], provenance, "judge", "6",
-            comparison_id="pair-2", run_label="Fabric IQ",
-        )
-        self.assertEqual(client.post.call_count, 3)
-        self.assertEqual(first["evaluation_id"], second["evaluation_id"])
-        self.assertNotEqual(first["run_id"], second["run_id"])
-        other = row | {"agent": {"name": "basic-agent", "version": "4"}}
-        client.post.side_effect = [
-            {"id": "basic-eval"}, RunCreateResponse.model_construct(id="basic-run"),
-        ]
-        basic = business.create_regression_run(
-            project, client, "endpoint", [other], provenance, "judge", "6",
-            comparison_id="pair-2", run_label="Basic",
-        )
-        self.assertNotEqual(second["evaluation_id"], basic["evaluation_id"])
-        self.assertNotEqual(second["run_id"], basic["run_id"])
-        self.assertEqual(second["comparison_id"], basic["comparison_id"])
-        self.assertIn("Fabric IQ | iq-agent v7", definition["name"])
-        self.assertIn("Basic | basic-agent v4", client.post.call_args_list[-2].kwargs["body"]["name"])
-        self.assertEqual({item["agent"]["name"] for item in basic["dataset"]["cases"]}, {"basic-agent"})
-        self.assertTrue(all(set(item) == {"id", *business.FIELDS} for item in project.submitted))
-
-    def test_live_agent_evaluation_sends_only_query_and_judges_with_full_rubric(self) -> None:
-        project = dataset_project(MagicMock())
-        project.agents.get_version.return_value = SimpleNamespace(name="agent", version="7")
-        agent_client = project.get_openai_client.return_value.__enter__.return_value
-        raw_response = agent_client.responses.with_raw_response.create.return_value
-        raw_response.parse.return_value.status = "completed"
-        raw_response.parse.return_value.output_text = "Actual generated answer"
-        raw_response.http_response.json.side_effect = lambda: {
-            "id": "response-id", "tools": [{"type": "fabric_iq_preview"}],
-            "output": [{
-                "type": "mcp_call", "name": "ask_ontology",
-                "arguments": json.dumps({
-                    "request": agent_client.responses.with_raw_response.create.call_args.kwargs["input"],
-                }),
-            }],
-        }
-        evaluator = project.evaluators.get_version.return_value
-        evaluator.name = business.EVALUATOR_NAME
-        evaluator.version = "2"
-        evaluator.definition.as_dict.return_value = business.evaluator_definition()
-        client = self.evaluation_client()
-        dataset = ROOT / "evaluations/business_tests.json"
-        cases = json.loads(dataset.read_text())["test_cases"]
-        with tempfile.TemporaryDirectory() as directory:
-            record = business.create_agent_run(
-                project, client, "endpoint", dataset, "agent", "7", "judge", "2",
-                output_dir=Path(directory),
-            )
-            sources = record["dataset"]["sources"]
-            self.assertEqual(len(sources), len(cases))
-            for source in sources:
-                saved = json.loads(Path(source["path"]).read_text())
-                self.assertEqual(saved["status"], "captured")
-                self.assertNotIn("review", saved)
-                self.assertEqual(saved["response"]["tools"][0]["type"], "fabric_iq_preview")
-        calls = agent_client.responses.with_raw_response.create.call_args_list
-        self.assertEqual(len(calls), len(cases))
-        for call, case in zip(calls, cases):
-            self.assertEqual(call.kwargs, {
-                "input": case["query"],
-                "extra_body": {"agent_reference": {
-                    "type": "agent_reference", "name": "agent", "version": "7",
-                }},
-            })
-        evaluation = client.post.call_args_list[0].kwargs["body"]
-        self.assertEqual(evaluation["testing_criteria"][0]["data_mapping"], {
-            field: "{{item." + field + "}}" for field in business.FIELDS
-        })
-        run = client.post.call_args_list[1].kwargs["body"]
-        source = run["data_source"]
-        self.assertEqual(source["type"], "jsonl")
-        submitted = project.submitted
-        self.assertEqual(len(submitted), len(cases))
-        for row, case in zip(submitted, cases):
-            self.assertEqual(set(row), {"id", *business.FIELDS})
-            self.assertEqual(row["response"], "Actual generated answer")
-            self.assertEqual(row["context"], case["context"])
-            self.assertEqual(json.loads(row["criteria"]), case["criteria"])
-            self.assertEqual(json.loads(row["critical_errors"]), case["critical_errors"])
-        project.agents.get_version.assert_called_once_with(agent_name="agent", agent_version="7")
-        project.agents.create_version.assert_not_called()
-        project.evaluators.create_version.assert_not_called()
-        self.assertEqual(record["agent"], {"name": "agent", "version": "7"})
-        self.assertEqual(record["dataset"]["mode"], "live")
-        record["output_items"] = [
-            {"status": "completed", "datasource_item": {"id": row["id"]},
-             "results": [{"status": "completed", "passed": True, "reason": "Cloud judgment"}]}
-            for row in submitted
-        ]
-        summary = comparison_summary(record)
-        self.assertEqual(summary["agents"]["agent:v7"]["passed"], len(cases))
-        self.assertEqual(summary["agents"]["agent:v7"]["cases"]["B-001"]["reason"], "Cloud judgment")
-        record["output_items"].pop()
-        with self.assertRaisesRegex(ValueError, "missing"):
-            comparison_summary(record)
-
-    def test_failed_live_capture_stops_before_foundry_grading(self) -> None:
-        project = dataset_project()
-        project.agents.get_version.return_value = SimpleNamespace(name="agent", version="7")
-        client = Mock()
-        with tempfile.TemporaryDirectory() as directory:
-            with patch.object(business, "capture_case", side_effect=RuntimeError("Agent tool failed")):
-                with self.assertRaisesRegex(RuntimeError, "Agent tool failed"):
-                    business.create_agent_run(
-                        project, client, "endpoint", ROOT / "evaluations/business_tests.json",
-                        "agent", "7", "judge", "2", output_dir=Path(directory),
-                    )
-        client.post.assert_not_called()
 
     def test_comparison_replays_live_capture_answers_without_requiring_new_completions(self) -> None:
         dataset = ROOT / "evaluations/business_tests.json"
@@ -387,55 +308,6 @@ class BusinessEvaluationTests(unittest.TestCase):
             paths[1].write_text(json.dumps(source))
             with self.assertRaisesRegex(ValueError, "source response missing"):
                 comparison_cases(dataset, paths)
-
-    def test_rubric_registers_service_dimensions_and_maps_references_only_to_judge(self) -> None:
-        project = dataset_project()
-        project.evaluators.create_version.return_value = SimpleNamespace(
-            name=business.RUBRIC_EVALUATOR_NAME, version="1",
-        )
-        definition = business.rubric_definition()
-        project.evaluators.get_version.return_value.definition.as_dict.return_value = definition
-        client = self.evaluation_client()
-        row = self.rows[0] | {"agent": {"name": "agent", "version": "7"}, "case_id": "B-001"}
-        record = business.create_regression_run(
-            project, client, "endpoint", [row], {"mode": "comparison"}, "judge",
-            evaluator_kind="rubric",
-        )
-        registered = project.evaluators.create_version.call_args.kwargs
-        self.assertEqual(registered["name"], business.RUBRIC_EVALUATOR_NAME)
-        self.assertEqual(registered["evaluator_version"]["definition"]["type"], "rubric")
-        self.assertNotIn("prompt_text", registered["evaluator_version"]["definition"])
-        self.assertEqual(definition["pass_threshold"], 0.5)
-        self.assertTrue(all(dim["weight"] == 1 for dim in definition["dimensions"]))
-        criterion = client.post.call_args_list[0].kwargs["body"]["testing_criteria"][0]
-        self.assertEqual(criterion["evaluator_name"], business.RUBRIC_EVALUATOR_NAME)
-        self.assertEqual(criterion["data_mapping"], {
-            "query": "{{item.rubric_query}}", "response": "{{item.response}}",
-        })
-        submitted = project.submitted[0]
-        packet = json.loads(submitted["rubric_query"])
-        self.assertEqual(submitted["response"], row["response"])
-        self.assertEqual(submitted["query"], row["query"])
-        self.assertEqual(packet["reference_context"], row["context"])
-        self.assertEqual(packet["expected_answer"], row["ground_truth"])
-        self.assertEqual(packet["mandatory_criteria"], json.loads(row["criteria"]))
-        self.assertNotIn("agent", submitted)
-        self.assertNotIn("expected_pass", submitted)
-        project.get_openai_client.assert_not_called()
-        record["output_items"] = [{
-            "status": "completed", "datasource_item": {"id": row["id"]},
-            "results": [{
-                "status": "completed", "passed": True, "score": 0.75,
-                "reason": "Cloud rubric decision",
-                "properties": {"dimension_scores": [{"id": "shared_data", "score": 4}]},
-            }],
-        }]
-        result = comparison_summary(record)["agents"]["agent:v7"]["cases"]["B-001"]
-        self.assertEqual(result["score"], 0.75)
-        self.assertEqual(result["properties"]["dimension_scores"][0]["score"], 4)
-        record["output_items"][0]["results"][0]["score"] = None
-        with self.assertRaisesRegex(ValueError, "missing or invalid normalized rubric score"):
-            comparison_summary(record)
 
     def test_regression_verification_distinguishes_expected_rejection_from_execution_errors(self) -> None:
         record = {
@@ -497,7 +369,7 @@ class CapturedResponseTests(unittest.TestCase):
             paths.append(path)
         return paths
 
-    def test_batch_judging_requires_all_cases_and_submits_only_saved_answers(self) -> None:
+    def test_offline_capture_validation_requires_all_cases_and_preserves_saved_answers(self) -> None:
         dataset = ROOT / "evaluations/business_tests.json"
         with tempfile.TemporaryDirectory() as directory:
             paths = self.batch_captures(directory)
@@ -505,25 +377,8 @@ class CapturedResponseTests(unittest.TestCase):
             cases = json.loads(dataset.read_text())["test_cases"]
             self.assertEqual(len(rows), len(cases))
             self.assertEqual({row["case_id"] for row in rows}, {case["id"] for case in cases})
-            project = dataset_project()
-            evaluator = project.evaluators.get_version.return_value
-            evaluator.name, evaluator.version = business.EVALUATOR_NAME, "6"
-            evaluator.definition.as_dict.return_value = business.evaluator_definition()
-            client = Mock()
-            client.evals.list.return_value = []
-            client.post.side_effect = [
-                {"id": "eval-id"}, RunCreateResponse.model_construct(id="run-id"),
-            ]
-            record = business.create_regression_run(
-                project, client, "endpoint", rows, provenance, "judge", "6",
-            )
-            submitted = project.submitted
-            self.assertEqual(len(submitted), len(cases))
-            self.assertTrue(all(item["response"] == "Saved answer 1" for item in submitted))
-            self.assertTrue(all(set(item) == {"id", *business.FIELDS} for item in submitted))
-            self.assertEqual(record["dataset"]["case_count"], len(cases))
-            project.agents.get_version.assert_not_called()
-            project.evaluators.create_version.assert_not_called()
+            self.assertTrue(all(row["response"] == "Saved answer 1" for row in rows))
+            self.assertEqual(provenance["mode"], "comparison")
             with self.assertRaisesRegex(ValueError, "missing cases"):
                 captured_cases(dataset, paths[:-1], "endpoint")
             with self.assertRaisesRegex(ValueError, "distinct agent/case"):
@@ -551,42 +406,22 @@ class CapturedResponseTests(unittest.TestCase):
             paths.append(path)
         return paths
 
-    def test_judge_only_cli_submits_exactly_two_saved_answers_and_never_calls_agents(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            paths = self.captures(directory)
-            with patch.object(sys, "argv", [
-                "evaluate_business.py", "--endpoint", "endpoint",
-                "--dataset", str(ROOT / "evaluations/business_tests.json"),
-                "--captured-responses", *map(str, paths), "--case-id", "B-001",
-                "--evaluator-version", "2", "--output-dir", directory,
-            ]), patch.object(cli, "AzureCliCredential"), \
-                    patch.object(cli, "AIProjectClient") as factory, \
-                    patch.object(cli, "wait_for_run"), \
-                    patch.object(cli, "finish_run"), \
-                    patch.object(cli, "comparison_summary", return_value={"agents": {}}), \
-                    patch.object(business, "capture_case") as capture:
-                project = factory.return_value.__enter__.return_value
-                dataset_project(project)
-                client = project.get_openai_client.return_value.__enter__.return_value
-                client.post.side_effect = [
-                    {"id": "eval-id"}, RunCreateResponse.model_construct(id="run-id"),
-                ]
-                evaluator = project.evaluators.get_version.return_value
-                evaluator.name, evaluator.version = business.EVALUATOR_NAME, "2"
-                evaluator.definition.as_dict.return_value = business.evaluator_definition()
-                cli.main()
-                capture.assert_not_called()
-                project.agents.get_version.assert_not_called()
-                project.agents.create_version.assert_not_called()
-                project.evaluators.create_version.assert_not_called()
-                submitted = project.submitted
-                self.assertEqual([row["response"] for row in submitted],
-                                 ["Saved answer 1", "Saved answer 2"])
-                self.assertEqual([row["id"] for row in submitted],
-                                 ["A1-B-001", "A2-B-001"])
-                self.assertTrue(all("agent" not in row for row in submitted))
-                record = json.loads((Path(directory) / "run-id.json").read_text())
-                self.assertEqual(record["dataset"]["case_count"], 2)
+    def test_cli_blocks_saved_answers_calibration_and_implicit_replay_before_cloud_access(self) -> None:
+        for arguments in (
+            ["--captured-responses", "capture.json", "--evaluator-version", "11"],
+            ["--compare-runs", "iq.json", "basic.json"],
+            ["--source-run", "historical.json"],
+            ["--controls", "controls.json"],
+            ["--agent", "agent", "--agent-version", "8", "--evaluator-kind", "rubric"],
+            [],
+        ):
+            with self.subTest(arguments=arguments), patch.object(sys, "argv", [
+                "evaluate_business.py", "--endpoint", "endpoint", *arguments,
+            ]), patch.object(cli, "AIProjectClient") as factory:
+                with self.assertRaises(SystemExit) as raised:
+                    cli.main()
+                self.assertEqual(raised.exception.code, 2)
+                factory.assert_not_called()
 
     def test_capture_validation_rejects_stale_failed_or_duplicate_sources(self) -> None:
         dataset = ROOT / "evaluations/business_tests.json"
@@ -621,44 +456,11 @@ class CapturedResponseTests(unittest.TestCase):
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["response"], "Saved answer 1")
             self.assertEqual(rows[0]["agent"]["name"], "agent-1")
-            project = dataset_project()
-            evaluator = project.evaluators.get_version.return_value
-            evaluator.name, evaluator.version = business.EVALUATOR_NAME, "2"
-            evaluator.definition.as_dict.return_value = business.evaluator_definition()
-            client = Mock()
-            client.evals.list.return_value = []
-            client.post.side_effect = [
-                {"id": "eval-id"}, RunCreateResponse.model_construct(id="run-id"),
-            ]
-            record = business.create_regression_run(
-                project, client, "endpoint", rows, provenance, "judge", "2",
-            )
-            submitted = project.submitted
-            self.assertEqual([row["response"] for row in submitted], ["Saved answer 1"])
-            self.assertEqual(record["dataset"]["case_count"], 1)
-            project.evaluators.create_version.assert_not_called()
-            project.agents.get_version.assert_not_called()
+            self.assertEqual([row["response"] for row in rows], ["Saved answer 1"])
+            self.assertEqual(provenance["case_id"], "B-001")
 
 
 class FoundryDatasetTests(unittest.TestCase):
-    def test_identical_inputs_reuse_a_version_and_changed_answers_get_a_new_version(self) -> None:
-        project = dataset_project()
-        rows = [{"id": "B-001", "query": "Question", "response": "Answer"}]
-        first = datasets.register_evaluation_data(project, rows, agent_names=["agent"])
-        project.datasets.get.side_effect = None
-        project.datasets.get.return_value = SimpleNamespace(id=first["id"])
-        reused = datasets.register_evaluation_data(project, rows, agent_names=["agent"])
-        self.assertEqual(first, reused)
-        self.assertEqual(project.datasets.upload_file.call_count, 1)
-        project.datasets.get.side_effect = ResourceNotFoundError
-        changed = datasets.register_evaluation_data(
-            project, [rows[0] | {"response": "New answer"}], agent_names=["agent"],
-        )
-        self.assertNotEqual(first["version"], changed["version"])
-        self.assertEqual(project.datasets.upload_file.call_count, 2)
-        self.assertEqual(project.submitted[0]["response"], "New answer")
-        self.assertNotIn("agent", project.submitted[0])
-
     def test_pinned_cloud_reference_is_verified_before_using_its_exact_bytes(self) -> None:
         content = (ROOT / "evaluations/business_tests.json").read_bytes()
         project = Mock()
@@ -820,7 +622,7 @@ class BusinessEvaluationCliTests(unittest.TestCase):
             self.assertEqual(list(Path(directory).glob("*.json")), [path])
 
     def test_existing_live_command_dispatches_to_shared_runtime_and_result_helpers(self) -> None:
-        for kind in ("custom", "rubric"):
+        for kind in ("custom",):
             record = {
                 "run_id": "run-id", "project_endpoint": "endpoint",
                 "dataset": {"mode": "live"},
@@ -844,7 +646,7 @@ class BusinessEvaluationCliTests(unittest.TestCase):
                 create.assert_called_once_with(
                     project, client, "endpoint", ROOT / "evaluations/generated/business_reference.jsonl",
                     "agent", "7", "gpt-4.1", None,
-                    output_dir=Path(directory), evaluator_kind=kind,
+                    evaluator_kind=kind,
                     comparison_id=None, run_label=None,
                 )
                 wait.assert_called_once_with(client, record, path, 1200)
@@ -866,7 +668,7 @@ class BusinessEvaluationCliTests(unittest.TestCase):
                     patch.object(cli, "AzureCliCredential"), \
                     patch.object(cli, "AIProjectClient"), \
                     patch.object(cli, "create_agent_run") as live, \
-                    patch.object(cli, "create_regression_run") as replay, \
+                    patch.object(business, "create_regression_run") as replay, \
                     patch.object(cli, "wait_for_run") as wait, \
                     patch.object(cli, "finish_run"), \
                     patch.object(cli, "comparison_summary", return_value={"agents": {}}):
