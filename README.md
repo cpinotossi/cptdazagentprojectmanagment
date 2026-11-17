@@ -479,10 +479,10 @@ answers independently; its judgments do not apply to the diagnostic captures.
 Open [business_all_tests.ipynb](notebooks/business_all_tests.ipynb) with the Bash
 kernel. Five code cells configure the run, publish and pin its reference, run
 each agent's six-case evaluation and display the comparison. Agent versions are
-pinned to Fabric IQ v8 and Basic v6; custom evaluator v13 is reused.
+pinned to Fabric IQ v8 and Basic v6; custom evaluator v14 is reused.
 
 Each agent cell uses `evaluate_business.py --agent NAME --agent-version VERSION
---reference-asset FILE --evaluator-version 13 --result-file FILE`.
+--reference-asset FILE --evaluator-version 14 --result-file FILE`.
 The runner submits `azure_ai_target_completions` with the existing reference's
 `file_id`. Foundry generates the six answers and applies two evaluators to each:
 the prompt-based judge (`project-planning-business-correctness`, PASS or FAIL
@@ -498,7 +498,7 @@ The equivalent terminal command uses the canonical JSONL by default:
 ```bash
 .venv/bin/python scripts/evaluate_business.py \
   --endpoint "$FOUNDRY_PROJECT_ENDPOINT" \
-  --agent project-planning-agent --agent-version 8 --evaluator-version 13
+  --agent project-planning-agent --agent-version 8 --evaluator-version 14
 ```
 
 There is no separate capture phase, no inline input and no local pre-judge

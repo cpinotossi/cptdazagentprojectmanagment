@@ -1,12 +1,14 @@
-"""Deterministic anchor check for the Foundry code-based evaluator.
+"""Deterministic checks for the Foundry code-based evaluator.
 
 Self-contained on purpose: the file text is uploaded as the evaluator and runs in
 Foundry's sandbox (no network). A criterion may list "anchors": strings the answer
-must contain. An anchor is a string or a list of alternative spellings. The score
-is the share of anchors found in the generated answer (0.0 to 1.0).
+must contain, each a string or a list of alternative spellings. It may also list
+"forbidden": regular expressions that must not match. The score is the share of
+checks that hold in the generated answer (0.0 to 1.0).
 """
 
 import json
+import re
 import unicodedata
 
 
@@ -34,6 +36,17 @@ def check_anchors(response, criteria):
     return found, total, missing
 
 
+def forbidden_hits(response, criteria):
+    """Return (criterion id, pattern) for every forbidden regular expression found in the response."""
+    text = unicodedata.normalize("NFC", str(response)).replace("*", "").replace("`", "")
+    return [
+        (criterion["id"], pattern)
+        for criterion in criteria
+        for pattern in criterion.get("forbidden", [])
+        if re.search(pattern, text, re.IGNORECASE)
+    ]
+
+
 def generated_response(sample, item):
     if isinstance(item, dict):
         nested = item.get("sample")
@@ -54,4 +67,7 @@ def grade(sample, item):
     if isinstance(criteria, str):
         criteria = json.loads(criteria)
     found, total, _ = check_anchors(response, criteria)
-    return found / total if total else 1.0
+    forbidden_total = sum(len(criterion.get("forbidden", [])) for criterion in criteria)
+    clean = forbidden_total - len(forbidden_hits(response, criteria))
+    checks = total + forbidden_total
+    return (found + clean) / checks if checks else 1.0

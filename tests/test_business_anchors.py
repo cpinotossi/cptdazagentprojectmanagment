@@ -37,6 +37,12 @@ class AnchorEvaluatorTests(unittest.TestCase):
         found, total, _ = ba.check_anchors("Budget 5.500.000 EUR", [{"id": "n", "anchors": ["500.000"]}])
         self.assertEqual((found, total), (1, 1))
 
+    def test_forbidden_patterns_lower_the_score_and_do_not_hit_negations(self) -> None:
+        criteria = [{"id": "g", "forbidden": ["planm(ä|ae)(ß|ss)ig"], "anchors": ["P-100"]}]
+        self.assertEqual(ba.grade({}, item("P-100 ist betroffen", criteria)), 1.0)
+        self.assertEqual(ba.grade({}, item("P-100 erfolgt planmäßig", criteria)), 0.5)
+        self.assertEqual(ba.forbidden_hits("Es erfolgt PLANMAESSIG", criteria), [("g", "planm(ä|ae)(ß|ss)ig")])
+
     def test_missing_anchors_are_reported_per_criterion(self) -> None:
         _, _, missing = ba.check_anchors("P-100", self.CRITERIA)
         self.assertEqual([criterion for criterion, _ in missing], ["a", "b"])

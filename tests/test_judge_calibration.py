@@ -165,6 +165,36 @@ class StructuredVerdictTests(unittest.TestCase):
         verdict = self.evaluate(self.good().replace("C | b | MET | ABSENT", 'C | b | MET | "Im Stopp."'))
         self.assertEqual(verdict["failed"], ["b"])
 
+    def test_claimed_critical_error_needs_a_quote_with_its_anchor(self) -> None:
+        row = {
+            "criteria": "[]",
+            "critical_errors": json.dumps([{"id": "deadline", "description": "x", "violation_anchors": [["Arbeitstag", "Werktag"]]}]),
+        }
+        response = "Das muss zwingend bestätigt werden. Frist: ein Arbeitstag."
+        topical = jc.evaluate_structured(row, response, False, 'X | deadline | PRESENT | "muss zwingend bestätigt werden"')
+        real = jc.evaluate_structured(row, response, False, 'X | deadline | PRESENT | "Frist: ein Arbeitstag."')
+        self.assertIs(topical["effective"], True)
+        self.assertEqual(topical["discarded_errors"], ["deadline"])
+        self.assertFalse(topical["inconsistent_result"])
+        self.assertIs(real["effective"], False)
+        self.assertEqual(real["failed"], ["deadline"])
+
+    def test_prohibition_violation_needs_a_violation_anchor_and_forbidden_patterns_always_fail(self) -> None:
+        row = {
+            "criteria": json.dumps([
+                {"id": "scope", "description": "x", "absence": True, "violation_anchors": [["Arbeitstag"]]},
+                {"id": "promise", "description": "x", "absence": True, "forbidden": ["planm(ä|ae)(ß|ss)ig"]},
+            ]),
+            "critical_errors": "[]",
+        }
+        response = "Das muss zwingend bestätigt werden. Die Lieferung erfolgt planmäßig."
+        lines = 'C | scope | NOT_MET | "muss zwingend bestätigt werden"\nC | promise | MET | ABSENT'
+        verdict = jc.evaluate_structured(row, response, False, lines)
+        self.assertEqual(verdict["discarded_errors"], ["scope"])
+        self.assertEqual(verdict["failed"], ["promise"])
+        self.assertIs(verdict["effective"], False)
+        self.assertFalse(verdict["inconsistent_result"])
+
     def test_real_quote_that_misses_required_anchor_is_rejected(self) -> None:
         row = {
             "criteria": json.dumps([{"id": "qty", "description": "x", "anchors": [["1200", "1.200"]]}]),

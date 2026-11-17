@@ -133,6 +133,16 @@ def quote_has_anchors(quote: str, anchors: list) -> bool:
     return all(business_anchors.anchor_found(haystack, anchor) for anchor in anchors)
 
 
+def violation_is_shown(entries: list[dict], response: str, violation_anchors: list) -> bool:
+    """A reported violation counts only if a quote from the answer contains a violation anchor, when any are defined."""
+    if not violation_anchors:
+        return True
+    return any(
+        quote_is_grounded(entry["evidence"], response) and quote_has_anchors(entry["evidence"], violation_anchors)
+        for entry in entries
+    )
+
+
 def parse_reason(reason: str) -> dict:
     items: dict[tuple[str, str], list[dict]] = {}
     unsupported, malformed, last = [], [], None
@@ -173,7 +183,8 @@ def evaluate_structured(row: dict, response: str, judge_result: bool, reason: st
     expected = [("C", item["id"]) for item in criteria] + [("X", item["id"]) for item in critical]
     missing = [f"{kind}:{name}" for kind, name in expected if (kind, name) not in parsed["items"]]
     extra = [f"{kind}:{name}" for kind, name in parsed["items"] if (kind, name) not in set(expected)]
-    failed, ungrounded, bad, raw_ok = [], [], [], True
+    failed, ungrounded, bad, raw_ok, discarded = [], [], [], True, []
+    forbidden = business_anchors.forbidden_hits(response, criteria)
     for item in criteria:
         entries = parsed["items"].get(("C", item["id"]))
         if entries is None:
@@ -181,8 +192,11 @@ def evaluate_structured(row: dict, response: str, judge_result: bool, reason: st
         if any(entry["decision"] not in ("MET", "NOT_MET") for entry in entries):
             bad.append(f"C:{item['id']}")
         elif any(entry["decision"] == "NOT_MET" for entry in entries):
-            failed.append(item["id"])
-            raw_ok = False
+            if item.get("absence") and not violation_is_shown(entries, response, item.get("violation_anchors", [])):
+                discarded.append(item["id"])
+            else:
+                failed.append(item["id"])
+                raw_ok = False
         else:
             if item.get("absence"):
                 supported = all(entry["evidence"].strip().upper() == "ABSENT" for entry in entries)
@@ -192,6 +206,9 @@ def evaluate_structured(row: dict, response: str, judge_result: bool, reason: st
             if not supported:
                 ungrounded.append(item["id"])
                 failed.append(item["id"])
+    for criterion_id, _ in forbidden:
+        if criterion_id not in failed:
+            failed.append(criterion_id)
     for item in critical:
         entries = parsed["items"].get(("X", item["id"]))
         if entries is None:
@@ -199,6 +216,11 @@ def evaluate_structured(row: dict, response: str, judge_result: bool, reason: st
         if any(entry["decision"] not in ("PRESENT", "ABSENT") for entry in entries):
             bad.append(f"X:{item['id']}")
         elif any(entry["decision"] == "PRESENT" for entry in entries):
+            present = [entry for entry in entries if entry["decision"] == "PRESENT"]
+            # A claimed error must show the telltale text itself; a topical quote is not evidence.
+            if not violation_is_shown(present, response, item.get("violation_anchors", [])):
+                discarded.append(item["id"])
+                continue
             failed.append(item["id"])
             raw_ok = False
     usable = not (missing or extra or bad or parsed["malformed"])
@@ -207,7 +229,8 @@ def evaluate_structured(row: dict, response: str, judge_result: bool, reason: st
         "effective": (not failed) if usable else None,
         "failed": sorted(set(failed)), "ungrounded": ungrounded, "missing": missing, "extra": extra,
         "bad": bad, "malformed": parsed["malformed"], "unsupported": len(parsed["unsupported"]),
-        "inconsistent_result": bool(usable and judge_result != raw_ok),
+        "discarded_errors": discarded,
+        "inconsistent_result": bool(usable and judge_result != raw_ok and not discarded),
     }
 
 

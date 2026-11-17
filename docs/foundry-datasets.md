@@ -71,16 +71,31 @@ criterion.
 An anchor is a string the answer must contain, or a list of alternative
 spellings. The same definition feeds the Foundry code-based evaluator
 [business_anchors.py](../evaluations/evaluators/business_anchors.py), which
-scores the share of anchors found in the generated answer without any LLM.
+scores the share of checks that hold in the generated answer without any LLM.
 It cannot see criteria without anchors and matches substrings, so `500.000` also
-matches `5.500.000`.
+matches `5.500.000`. Two further fields refine prohibitions:
+
+- `violation_anchors` on a critical error or a prohibition: a reported violation
+  counts only if its quote contains one of them. This discards a judge finding that
+  merely sounds related, for example "muss zwingend bestätigt werden" as a deadline.
+- `forbidden`: regular expressions that fail the criterion whenever they match the
+  answer, for example `planmäßig` for a hedged delivery promise. Use them only for
+  phrases that never occur in a correct answer; negations such as "kann nicht
+  geliefert werden" make most candidates unusable.
+
+**Do not use the line check as a verdict.** Applied to ten real Fabric IQ runs it
+rejected far more items than the Foundry judge (for B-003 six of ten) because the judge
+often combines table cells, adds its own remarks in parentheses or changes quotation
+marks, so the quote is not verbatim although the substance is right. Used on
+calibration items it agreed 31 of 32 times, so the figure does not transfer to
+real runs. Read it as a diagnostic that points to answers worth reading.
 
 ```bash
 .venv/bin/python scripts/judge_calibration.py --repeats 3
 ```
 
 The local file [business_correctness.json](../evaluations/evaluators/business_correctness.json)
-holds the structured prompt registered as evaluator v13. Foundry itself only
+holds the structured prompt registered as evaluator v14. Foundry itself only
 reads the judge's boolean `result`; the per-line checks above run in the local
 calibration tool, which is a development aid for prompt changes. In operation
 the deterministic part in Foundry is the anchor evaluator, which gave the same
