@@ -43,8 +43,9 @@ never sent to the judge.
 The fixture [judge_calibration.json](../evaluations/judge_calibration.json) holds
 twelve real answers (six cases, Fabric IQ and Basic) and exact text-edit
 variants of them: missing points, invented claims and paraphrases. A variant may
-build on an earlier variant to isolate one defect. Its labels are marked
-`proposed` until a human confirms them. Borderline items are reported but
+build on an earlier variant to isolate one defect. The pass/fail labels were
+confirmed by the project owner (`label_status: confirmed`); the per-criterion
+`expected_failed` lists are the assistant's. Borderline items are reported but
 excluded from the agreement count.
 
 The evaluator prompt asks for one structured line per criterion and critical

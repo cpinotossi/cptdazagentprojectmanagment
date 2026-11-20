@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "label_status": "proposed",
-  "note": "Local-only judge calibration fixture; never uploaded to Foundry. Real answers come from the saved paired run (Fabric IQ v8, Basic v6, evaluator v11). Variants are exact text edits of a real answer. expected_pass and expected_failed are proposed labels pending human confirmation and are never passed to the judge.",
+  "label_status": "confirmed",
+  "note": "Local-only judge calibration fixture; never uploaded to Foundry. Real answers come from the saved paired run (Fabric IQ v8, Basic v6, evaluator v11) and two later Fabric IQ v8 runs. Variants are exact text edits of a real answer. expected_pass and expected_failed were confirmed by the project owner on 2026-11-20 (B-005 IQ and Basic as FAIL; B-003 Basic and B-004 Basic stay borderline) and are never passed to the judge. expected_failed lists were written by the assistant and cover the criteria that were found missing.",
   "answers": [
     {
       "id": "B-001-BASIC",
