@@ -4,14 +4,8 @@
   "language": "de",
   "evaluation_notes": [
     "Six evaluation inputs: five synthetic held-out cases (two emails, two questions and one explicitly fictional supplier news report) plus the established qwert synonym regression question. These are evaluation inputs, not new source records.",
-    "Send only query to each pinned agent in a fresh conversation. Never send context, ground_truth, criteria or critical_errors to the agent.",
-    "Assess every mandatory criterion manually as correct, incorrect or missing, with answer evidence. Check citations and additional unsupported claims separately.",
-    "A case passes only when every mandatory criterion is correct, source support is correct, no additional incorrect claims exist and every critical error is absent. Unreviewed cases are pending, not passed.",
-    "Numeric criteria specify exact reference values; equivalent number, date and language formats are acceptable. Do not require verbatim reference wording.",
-    "Compare shared document knowledge separately from ontology-only rules and vocabulary. The data-only baseline intentionally does not receive ontology policies or synonyms.",
-    "The supplier article tests exact supplier/product joins, planned delivery dates against an inclusive delivery-stop interval, and alternative sourcing through the supplier portfolio without inventing availability. No browsing or current-news verification is needed.",
-    "Six cases are diagnostic, not a statistically representative quality estimate. Repeat with new run directories to assess variability.",
-    "The previous regional-news B-005 reference is archived as evaluations/archive/business_tests_before_supplier_scenario.json. Older datasets and historical run files remain unchanged."
+    "The data-only baseline intentionally does not receive ontology policies or synonyms, so differences on ontology-only rules and vocabulary (for example B-006) do not measure general answer quality.",
+    "Six cases are diagnostic, not a statistically representative quality estimate. Repeat runs to assess variability."
   ],
   "source_documents": [
     {
